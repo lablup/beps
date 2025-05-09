@@ -145,7 +145,7 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
     ...
 ```
 
-## Goals
+### Design Goals
 
 * Generalize it for heterogeneous accelerators with multiple different partitioning support
 * Support multiple different resource slot definitions from a single plugin instance (e.g,. MIG + fGPU mixed in a single node).
