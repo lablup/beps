@@ -1,7 +1,7 @@
-----
+---
 Author: Joongi Kim (joongi@lablup.com)
 Status: Draft
-----
+---
 
 # Redefining Accelerator Metadata
 
@@ -61,10 +61,10 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
 
 ### Problems
 
-A single plugin may return only one AcceleratorMetadata.Example) If the cuda plugin has multiple devices with different configurations (e.g., 2 GPUs with MIG enabled and 6 GPUs without it), it cannot return two different AcceleratorMetadata instances.
-It is confusing whether AcceleratorMetadata represents a resource slot or a device (it's for resource slot!). The name should be clarified.
-
-We need to expand the metadata format to include various device capabilities such as compute precision support, partition capability, and memory hierarchy.
+* A single plugin may return only one `AcceleratorMetadata`.
+  - e.g., If the cuda plugin has multiple devices with different configurations (e.g., 2 GPUs with MIG enabled and 6 GPUs without it), it cannot return two different AcceleratorMetadata instances.
+* It is confusing whether `AcceleratorMetadata` represents a resource slot or a device (it's for resource slot!). The name should be clarified.
+* We need to expand the metadata format to include various device capabilities such as compute precision support, partition capability, and memory hierarchy.
 
 ## Proposed structure (WIP)
 
@@ -147,11 +147,13 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
 
 ## Goals
 
-Generalize it for heterogeneous accelerators with multiple different partitioning support
-Support multiple different resource slot definitions from a single plugin instance (e.g,. MIG + fGPU mixed in a single node).
-Make it extensible without changing Python plugin interfaces, by using a comprehensive schema-based metadata interface using JSON.Consider defining an explicit jsonschema for easier validation.
-Unify a-little-bit duplicated interfaces, like: "get_metadata()" and "extra_info()".
-Potential impacts to fellow developers
+* Generalize it for heterogeneous accelerators with multiple different partitioning support
+* Support multiple different resource slot definitions from a single plugin instance (e.g,. MIG + fGPU mixed in a single node).
+* Make it extensible without changing Python plugin interfaces, by using a comprehensive schema-based metadata interface using JSON.
+* Consider defining an explicit jsonschema for easier validation.
+* Unify a-little-bit duplicated interfaces, like: "get_metadata()" and "extra_info()".
+
+## Potential impacts to fellow developers
 
 The plugin interface update requires updates of the existing plugins.Instead of replacing existing interface, we could add another interface to support multiple interfaces at the same time.
 
