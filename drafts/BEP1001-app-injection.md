@@ -50,8 +50,8 @@ to execute an (injected) script instead of directly writing the configuration fi
 **Design discussion:**
 - Make a wheelhouse directory and install them when first-launching the app  
   _vs._ Make a pre-installed site-packages directory and mount subdirs into `/opt/backend.ai`?
-- We must install `ipython` at least in the _target_ Python (the Python already-installed inside the container image) upon the first launch.
-  We also have to generate the metakernel spec (like what we does in [backend.ai-kernels](https://github.com/lablup/backend.ai-kernels/blob/075ca379c7db279f69d4485bf014750af0bb6fdc/python/Dockerfile.3.11-ubuntu22.04#L135-L137)).
+- We must install `ipykernel` at least in the _target_ Python (the Python already-installed inside the container image) upon the first launch
+  and generate the metakernel spec (like what we does in [backend.ai-kernels](https://github.com/lablup/backend.ai-kernels/blob/075ca379c7db279f69d4485bf014750af0bb6fdc/python/Dockerfile.3.11-ubuntu22.04#L135-L137)).
   We need an explicit error reporting when this fails.
 
 ### VSCode
