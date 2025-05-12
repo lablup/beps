@@ -33,7 +33,7 @@ class AbstractComputeDevice:
     memory_size: int  # bytes of available per-accelerator memory
     processing_units: int  # number of processing units (e.g., cores, SMP)
     numa_node: Optional[int]  # NUMA node ID (None if not applicable)
-    
+
     ...
 
 class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
@@ -43,7 +43,7 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
 
     @abstractmethod
     def get_metadata(self) -> AcceleratorMetadata: ...
-    
+
     @abstractmethod
     async def list_devices(self) -> Collection[AbstractComputeDevice]: ...
 
@@ -56,7 +56,67 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
     @abstractmethod
     async def extra_info(self) -> Mapping[str, str]: ...
 
-    ...
+    @abstractmethod
+    async def gather_node_measures(self, ctx: StatContext) -> Sequence[NodeMeasurement]: ...
+
+    @abstractmethod
+    async def gather_container_measures(
+        self,
+        ctx: StatContext,
+        container_ids: Sequence[str],
+    ) -> Sequence[ContainerMeasurement]: ...
+
+    @abstractmethod
+    async def gather_process_measures(
+        self, ctx: StatContext, pid_map: Mapping[int, str]
+    ) -> Sequence[ProcessMeasurement]: ...
+
+    @abstractmethod
+    async def create_alloc_map(self) -> AbstractAllocMap: ...
+
+    @abstractmethod
+    async def get_hooks(self, distro: str, arch: str) -> Sequence[Path]: ...
+
+    @abstractmethod
+    async def generate_docker_args(
+        self,
+        docker: aiodocker.docker.Docker,
+        device_alloc: DeviceAllocation,
+    ) -> Mapping[str, Any]: ...
+
+    async def generate_resource_data(self, device_alloc: DeviceAllocation) -> Mapping[str, str]: ...
+
+    @abstractmethod
+    async def restore_from_container(
+        self,
+        container: SessionContainer,
+        alloc_map: AbstractAllocMap,
+    ) -> None: ...
+
+    @abstractmethod
+    async def get_attached_devices(
+        self,
+        device_alloc: DeviceAllocation,
+    ) -> Sequence[DeviceModelInfo]: ...
+
+    async def get_node_hwinfo(self) -> HardwareMetadata: ...
+
+    @abstractmethod
+    async def get_docker_networks(
+        self,
+        device_alloc: DeviceAllocation,
+    ) -> list[str]: ...
+
+    @abstractmethod
+    async def generate_mounts(
+        self,
+        source_path: Path,
+        device_alloc: DeviceAllocation,
+    ) -> list[MountInfo]: ...
+
+    def get_additional_gids(self) -> list[int]: ...
+
+    def get_additional_allowed_syscalls(self) -> list[str]: ...
 ```
 
 ### Problems
@@ -111,14 +171,14 @@ class PartitioningCapability:
 class AbstractComputeDevice:
     device_id: DeviceId
     hw_location: str          # either PCI bus ID or arbitrary string
-    numa_node: Optional[int]  # NUMA node ID (None if not applicable)    
+    numa_node: Optional[int]  # NUMA node ID (None if not applicable)
     memory_size: int          # (legacy-compat) size of the on-device memory (bytes)
     processing_units: int     # (legacy-compat) number of the representative compute units
     memory_spec: MemorySpec   # (new) detailed memory specification
     compute_units: Sequence[ComputeUnit]  # (new) detailed compute unit specification
     precision_support: Sequence[ComputePrecisionSupport]
     partioning_support: Sequence[PartitioningCapability]
-    
+
     ...
 
 class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
@@ -129,7 +189,7 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
     # CHANGED: now returns a list of AcceleratorMetadata
     @abstractmethod
     def get_metadata(self) -> Sequence[AcceleratorMetadata]: ...
-    
+
     @abstractmethod
     async def list_devices(self) -> Collection[AbstractComputeDevice]: ...
 
@@ -153,7 +213,28 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
 * Consider defining an explicit jsonschema for easier validation.
 * Unify a-little-bit duplicated interfaces, like: "get_metadata()" and "extra_info()".
 
+### Translation of existing APIs
+
+| Method | Resolution | Category |
+|-------------------------------------|-------------------------------------|:-------:|
+| `get_metadata()`                    | redesigned as `get_resource_spec()` with explicit schema | metadata |
+| `list_devices()`                    | kept as-is          | device-info |
+| `get_version()`                     | kept as-is          | metadata |
+| `gather_node_measures(...)`         | kept as-is          | metric |
+| `gather_container_measures(...)`    | kept as-is          | metric |
+| `gather_process_measures(...)`      | kept as-is          | metric |
+| `create_alloc_map()`                | kept as-is          | resource-control |
+| `restore_from_container(...)`       | kept as-is          | agent-state |
+| `available_slots()`                 | unify into `query_resource()` | device-info |
+| `get_attached_devices(...)`         | unify into `query_resource()` | device-info |
+| `get_hooks()`                       | unify into `query_workload_init_config()` | container-creation |
+| `generate_docker_args(...)`         | unify into `query_workload_init_config()` | container-creation |
+| `generate_resource_data(...)`       | unify into `query_workload_init_config()` | container-creation, agent-state |
+| `get_docker_networks(...)`          | unify into `query_workload_init_config()` | container-creation |
+| `generate_mounts(...)`              | unify into `query_workload_init_config()` | container-creation |
+| `get_additional_gids()`             | unify into `query_workload_init_config()` | container-creation |
+| `get_additional_allowed_syscalls()` | unify into `query_workload_init_config()` | container-creation |
+
 ## Potential impacts to fellow developers
 
 The plugin interface update requires updates of the existing plugins.Instead of replacing existing interface, we could add another interface to support multiple interfaces at the same time.
-
