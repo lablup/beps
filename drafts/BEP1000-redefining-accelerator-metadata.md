@@ -227,13 +227,13 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
 | `restore_from_container(...)`       | kept as-is          | agent-state |
 | `available_slots()`                 | unify into `query_resource()` | device-info |
 | `get_attached_devices(...)`         | unify into `query_resource()` | device-info |
-| `get_hooks()`                       | unify into `query_workload_init_config()` | container-creation |
-| `generate_docker_args(...)`         | unify into `query_workload_init_config()` | container-creation |
-| `generate_resource_data(...)`       | unify into `query_workload_init_config()` | container-creation, agent-state |
-| `get_docker_networks(...)`          | unify into `query_workload_init_config()` | container-creation |
-| `generate_mounts(...)`              | unify into `query_workload_init_config()` | container-creation |
-| `get_additional_gids()`             | unify into `query_workload_init_config()` | container-creation |
-| `get_additional_allowed_syscalls()` | unify into `query_workload_init_config()` | container-creation |
+| `get_hooks()`                       | unify into `query_workload_config()` | container-creation |
+| `generate_docker_args(...)`         | unify into `query_workload_config()` | container-creation |
+| `generate_resource_data(...)`       | unify into `query_workload_config()` | container-creation, agent-state |
+| `get_docker_networks(...)`          | unify into `query_workload_config()` | container-creation |
+| `generate_mounts(...)`              | unify into `query_workload_config()` | container-creation |
+| `get_additional_gids()`             | unify into `query_workload_config()` | container-creation |
+| `get_additional_allowed_syscalls()` | unify into `query_workload_config()` | container-creation |
 
 ## Potential impacts to fellow developers
 
