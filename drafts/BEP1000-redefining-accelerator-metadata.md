@@ -224,16 +224,16 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
 | `gather_container_measures(...)`    | kept as-is                           | metric |
 | `gather_process_measures(...)`      | kept as-is                           | metric |
 | `create_alloc_map()`                | kept as-is                           | resource-control |
-| `restore_from_container(...)`       | kept as-is                           | agent-state |
-| `available_slots()`                 | unify into `query_resource()`        | device-info |
-| `get_attached_devices(...)`         | renamed to `to_device_list(...)`     | device-info |
-| `get_hooks()`                       | unify into `query_workload_config()` | container-creation |
-| `generate_docker_args(...)`         | unify into `query_workload_config()` | container-creation |
-| `generate_resource_data(...)`       | unify into `query_workload_config()` | container-creation, agent-state |
-| `get_docker_networks(...)`          | unify into `query_workload_config()` | container-creation |
-| `generate_mounts(...)`              | unify into `query_workload_config()` | container-creation |
-| `get_additional_gids()`             | unify into `query_workload_config()` | container-creation |
-| `get_additional_allowed_syscalls()` | unify into `query_workload_config()` | container-creation |
+| `restore_from_container(...)`       | renamed to `reconstruct_from_kernel(...)` | agent-state |
+| `generate_resource_data(...)`       | renamed to `write_into_kernel(...)`       | container-creation, agent-state |
+| `available_slots()`                 | unified into `get_resource_spec()`        | device-info |
+| `get_attached_devices(...)`         | renamed to `to_device_list(...)`          | device-info |
+| `get_hooks()`                       | unified into `query_workload_config(...)` | container-creation |
+| `generate_docker_args(...)`         | unified into `query_workload_config(...)` | container-creation |
+| `get_docker_networks(...)`          | unified into `query_workload_config(...)` | container-creation |
+| `generate_mounts(...)`              | unified into `query_workload_config(...)` | container-creation |
+| `get_additional_gids()`             | unified into `query_workload_config(...)` | container-creation |
+| `get_additional_allowed_syscalls()` | unified into `query_workload_config(...)` | container-creation |
 
 ## Potential impacts to fellow developers
 
