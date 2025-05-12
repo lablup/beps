@@ -218,15 +218,15 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
 | Method | Resolution | Category |
 |-------------------------------------|-------------------------------------|:-------:|
 | `get_metadata()`                    | redesigned as `get_resource_spec()` with explicit schema | metadata |
-| `list_devices()`                    | kept as-is          | device-info |
-| `get_version()`                     | kept as-is          | metadata |
-| `gather_node_measures(...)`         | kept as-is          | metric |
-| `gather_container_measures(...)`    | kept as-is          | metric |
-| `gather_process_measures(...)`      | kept as-is          | metric |
-| `create_alloc_map()`                | kept as-is          | resource-control |
-| `restore_from_container(...)`       | kept as-is          | agent-state |
-| `available_slots()`                 | unify into `query_resource()` | device-info |
-| `get_attached_devices(...)`         | unify into `query_resource()` | device-info |
+| `list_devices()`                    | redesigned to use more detailed device-info schema       | device-info |
+| `get_version()`                     | kept as-is                           | metadata |
+| `gather_node_measures(...)`         | kept as-is                           | metric |
+| `gather_container_measures(...)`    | kept as-is                           | metric |
+| `gather_process_measures(...)`      | kept as-is                           | metric |
+| `create_alloc_map()`                | kept as-is                           | resource-control |
+| `restore_from_container(...)`       | kept as-is                           | agent-state |
+| `available_slots()`                 | unify into `query_resource()`        | device-info |
+| `get_attached_devices(...)`         | renamed to `to_device_list(...)`     | device-info |
 | `get_hooks()`                       | unify into `query_workload_config()` | container-creation |
 | `generate_docker_args(...)`         | unify into `query_workload_config()` | container-creation |
 | `generate_resource_data(...)`       | unify into `query_workload_config()` | container-creation, agent-state |
