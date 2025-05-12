@@ -15,7 +15,7 @@ Status: Draft
 ### App Package
 
 - `service-def.json` (mounted as `/opt/kernel/service-defs/{app-name}.json`)
-- `app/` (mounted as `/opt/{app-name}/`)
+- `app/` (mounted as `/opt/apps/{app-name}/`)
 
 ### Updates to Manager API
 
@@ -38,6 +38,7 @@ Status: Draft
 - If the app depends on directories that only root can write to, it may not work as expected.
 - The delay required to load and extract the app packages
 - Managing the cached extracted app packages within the disk size limit of agents
+- Should we ship PBS (python-build-standalone) individually by each app?
 
 ### Jupyter
 
