@@ -28,11 +28,29 @@ Status: Draft
 
 ### Updates to Agent API
 
-# Migration of Existing Apps
+- TODO
 
-## Jupyter
+## Migration of Existing Apps
+
+### Overall technical issues
+
+- If we mount the extracted app directories as _read-only_, some apps may not work as expected.
+- If the app depends on directories that only root can write to, it may not work as expected.
+- The delay required to load and extract the app packages
+- Managing the cached extracted app packages within the disk size limit of agents
+
+### Jupyter
 
 Recently Jupyter has changed its configuration format. (TODO: issue link)
 
 We need to generate version-specific `.cfg` file, by replacing the service definition
 to execute an (injected) script instead of directly writing the configuration file from the embedded template string.
+
+**Design discussion:**
+- Make a wheelhouse directory and install them when first-launching the app  
+  _vs._ Make a pre-installed site-packages directory and mount subdirs into `/opt/backend.ai`?
+
+### VSCode
+
+- Could we make a statically built app package?
+- Could we allow users to install their own extensions in container while the app package is read-only?
