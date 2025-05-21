@@ -1,3 +1,8 @@
+---
+Author: Bokeum Kim (bkkim@lablup.com)
+Status: Draft
+---
+
 ## Agent RPC Operations
 
 ---
