@@ -144,7 +144,7 @@ Status: Draft
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Calls `self.agent.interrupt_kernel()`, sendinh a interrup msg to kernel
+    * Calls `self.agent.interrupt_kernel()`, sending a interrup msg to kernel
 
 ---
 
@@ -155,10 +155,7 @@ Status: Draft
     * `text: str`
     * `opts: dict`
 * **Response Value**:
-    * The RPC method itself doesn't explicitly return a value in its signature, suggesting completion results might be streamed back or handled via another mechanism triggered by `self.agent.get_completions()`.
-* **Side Effects**:
-    * Logs the completion request.
-    * Calls `self.agent.get_completions()` to forward the request to the kernel.
+    * JSON-parsed completion results containing suggested code completions
 
 ---
 
@@ -167,15 +164,12 @@ Status: Draft
 * **Input Value**: 
     * `kernel_id: str`
 * **Response Value**:
-    * The logs from the kernel (the exact type, e.g., `str` or a stream, depends on the implementation of `self.agent.get_logs()`).
-* **Side Effects**:
-    * Logs the log retrieval request.
-    * Calls `self.agent.get_logs()` to fetch logs from the container.
+    * JSON-parsed result of kernel logs
 
 ---
 
 ### `restart_kernel`
-* **Description**: Restarts a kernel, potentially with an updated configuration or image.
+* **Description**: Restarts a kernel
 * **Input Value**: 
     * `kernel_id: str`
     * `session_id: str`
@@ -184,24 +178,38 @@ Status: Draft
 * **Response Value**:
     * `dict[str, Any]`: Information about the newly restarted kernel (similar to `create_kernels` response for a single kernel).
 * **Side Effects**:
-    * Logs the restart attempt.
-    * Calls `self.agent.restart_kernel()`. This typically involves:
-        * **Container Deletion**: The old kernel container is destroyed.
-        * **Container Creation**: A new kernel container is created with the (potentially updated) image and configuration.
-        * **Event Production**: Lifecycle events for both destruction and creation.
-        * **Volume Mounting**: As with creation, volumes are mounted.
+    * Destroying old kerenl with given kernel id. call `inject_container_lifecycle_event` with `LifecycleEvent.DESTROY`and reason `RESTARTING`
+        * If destroying event spent more than 60 seconds, `inject_container_lifecycle_event` called with `LifecycleEvent.CLEAN`and reason `RESTART_TIMEOUT` and Raise `asyncio.TimeoutError``
+    * Restart kernel using `create_kernel`
 
 ---
 
 ### `execute`
 * **Description**: Executes code within a specified kernel.
+* **Input value**:
+    * `session_id: str`
+    * `kernel_id: str`
+    * `api_version: int`
+    * `run_id: str`
+    * `mode: Literal["query", "batch", "continue", "input"]`
+    * `code: str`
+    * `opts: dict[str, Any]`
+    * `flush_timeout: float`
 * **Response Value**:
-    * `dict[str, Any]`: A dictionary containing the result of the execution (e.g., output, status).
+    * `dict[str, Any]`: A dictionary containing the result of the execution, and file field
+        ```json
+        {
+            execution result,
+            "files": [],  # kept for API backward-compatibility
+        }
+        ```
 * **Side Effects**:
-    * Logs the execution request (unless `mode` is "continue").
-    * Calls `self.agent.execute()` to send the code and options to the kernel for execution inside its container.
-    * May trigger various events related to code execution status (e.g., stdout, stderr, result messages) via the agent's internal event system.
-
+    * Produce `ExecutionStartedEvent(session_id)`
+    * Calls kernel with given kernel id `execute`.
+        * When kernel with kernel_id does not exists, `RuntimeError` raises
+        * When asyncio.CancelledError occurs, `ExecutionCancelledEvent` is produced
+    * If Kernel execution is "finished", `ExecutionFinishedEvent(session_id)` produced
+    * If Kernel execution is "exec-timeout", `ExecutionTimeoutEvent(session_id)` produced and `inject_container_lifecycle_event` is called with `LifecycleEvent.DESTROY` and `EXEC_TIMEOUT`
 ---
 
 ### `trigger_batch_execution`
@@ -209,7 +217,6 @@ Status: Draft
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Logs the batch execution trigger.
     * Calls `self.agent.create_batch_execution_task()`, which likely sets up a background process or mechanism in the agent to feed code to the kernel for batch processing.
 
 ---
@@ -219,7 +226,6 @@ Status: Draft
 * **Response Value**:
     * `dict[str, Any]`: Information about the started service (e.g., access points, status).
 * **Side Effects**:
-    * Logs the service start request.
     * Calls `self.agent.start_service()`. This might involve:
         * Executing commands inside the container to launch the service.
         * Potentially exposing new ports or endpoints related to the service.
@@ -231,7 +237,6 @@ Status: Draft
 * **Response Value**:
     * `dict[str, Any]`: Contains the `kernel_id` and the `status` (e.g., "pending", "completed", "failed") of the commit.
 * **Side Effects**:
-    * Logs the status request (debug level).
     * Calls `self.agent.get_commit_status()`.
 
 ---
@@ -241,7 +246,6 @@ Status: Draft
 * **Response Value**:
     * `dict[str, Any]`: Contains a `bgtask_id` for the background commit operation, the `kernel_id`, and the `path` (if a filename is specified).
 * **Side Effects**:
-    * Logs the commit request.
     * Starts a background task (`_commit`) via `self.agent.background_task_manager`.
     * The `_commit` task calls `self.agent.commit()`, which involves:
         * **Image Creation**: Creating a new container image from the state of the running kernel's container.
@@ -254,7 +258,6 @@ Status: Draft
 * **Response Value**:
     * `dict[str, Any]`: Contains a `bgtask_id` for the background push operation and the `canonical` name of the image being pushed.
 * **Side Effects**:
-    * Logs the image push request.
     * Starts a background task (`_push_image`) via `self.agent.background_task_manager`.
     * The `_push_image` task calls `self.agent.push_image()`, which involves:
         * **Image Push**: Uploading the image layers to the target registry.
@@ -267,7 +270,6 @@ Status: Draft
 * **Response Value**:
     * `PurgeImagesResp`: An object detailing the results of the purge operation (e.g., which images were successfully deleted, any errors).
 * **Side Effects**:
-    * Logs the purge request with image list, force, and noprune flags.
     * Calls `self.agent.purge_images()`, which involves:
         * **Image Deletion**: Removing the specified images from the local image store.
         * May produce events related to image deletion.
@@ -288,7 +290,6 @@ Status: Draft
 * **Response Value**:
     * The result from `self.agent.shutdown_service()` (the exact type is not specified in the RPC signature, could be status or `None`).
 * **Side Effects**:
-    * Logs the service shutdown request.
     * Calls `self.agent.shutdown_service()`. This might involve sending signals or commands to the service process within the container to terminate it.
 
 ---
@@ -298,7 +299,6 @@ Status: Draft
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Logs the file upload request.
     * Calls `self.agent.accept_file()`, which writes the provided `filedata` to the specified `filename` within the kernel's filesystem (potentially in a mounted volume or the container's writable layer).
 
 ---
@@ -308,7 +308,6 @@ Status: Draft
 * **Response Value**:
     * The file data (e.g., `bytes` or a stream, depending on `self.agent.download_file()` implementation).
 * **Side Effects**:
-    * Logs the file download request.
     * Calls `self.agent.download_file()` to read the file/directory from the kernel's filesystem.
 
 ---
@@ -318,7 +317,6 @@ Status: Draft
 * **Response Value**:
     * The file data (e.g., `bytes` or a stream, depending on `self.agent.download_single()` implementation).
 * **Side Effects**:
-    * Logs the single file download request.
     * Calls `self.agent.download_single()` to read the specified file from the kernel's filesystem.
 
 ---
@@ -328,7 +326,6 @@ Status: Draft
 * **Response Value**:
     * A list of file/directory entries (the exact structure depends on `self.agent.list_files()` implementation).
 * **Side Effects**:
-    * Logs the list files request.
     * Calls `self.agent.list_files()` to inspect the filesystem within the kernel's environment.
 
 ---
@@ -338,7 +335,6 @@ Status: Draft
 * **Response Value**:
     * `None` (currently, as the implementation is `pass`).
 * **Side Effects**:
-    * Logs the shutdown request.
     * **TODO**: The implementation is noted as a TODO. A full implementation would likely:
         * Terminate all running kernels (**Container Deletion** for all kernels).
         * Clean up any other resources.
@@ -351,7 +347,6 @@ Status: Draft
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Logs the network creation request.
     * Calls `self.agent.create_local_network()` to interact with the container runtime to create the network.
 
 ---
@@ -361,7 +356,6 @@ Status: Draft
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Logs the network destruction request.
     * Calls `self.agent.destroy_local_network()` to interact with the container runtime to remove the network.
 
 ---
@@ -371,7 +365,6 @@ Status: Draft
 * **Response Value**:
     * `None` (after all kernel destruction tasks are gathered).
 * **Side Effects**:
-    * Logs the reset request.
     * Iterates through all kernels in `self.agent.kernel_registry`.
     * For each kernel:
         * Schedules `self.agent.destroy_kernel()` which leads to:
@@ -386,7 +379,6 @@ Status: Draft
 * **Response Value**:
     * `int`: An available port number.
 * **Side Effects**:
-    * Logs the port assignment request.
     * Removes a port from `self.agent.port_pool`.
 
 ---
@@ -396,7 +388,6 @@ Status: Draft
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Logs the port release request.
     * Adds the `port_no` back to `self.agent.port_pool`.
 
 ---
@@ -406,7 +397,6 @@ Status: Draft
 * **Response Value**:
     * `Mapping[str, Any]`: A dictionary mapping identifiers (likely GPU IDs or kernel IDs) to allocation information.
 * **Side Effects**:
-    * Logs the GPU scan request.
     * Calls an external utility `scan_gpu_alloc_map` which likely inspects system state or container configurations to determine GPU usage by kernels.
 
 ---
