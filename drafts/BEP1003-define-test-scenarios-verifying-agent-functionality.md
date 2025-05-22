@@ -235,8 +235,8 @@ Status: Draft
 ### `get_commit_status`
 * **Description**: Checks the status of an ongoing or previous commit operation for a kernel.
 * **Input Value**:
-    * `kernel_id: KernelId`
-    * `subdir: str`
+    * `kernel_id: KernelId`: Identifier for the kernel being used
+    * `subdir: str`: path for organizing files or outputs
 * **Response Value**:
     * `CommitStatus`
         * If image commit is ongoing(If lock_path(image-comit-path / subdir / lock / kernel_id) exists), response value is `CommitStatus.ONGOING`
@@ -248,11 +248,12 @@ Status: Draft
 ### `commit`
 * **Description**: Commits the current state of a kernel's container (or a subdirectory within it) to a new image.
 * **Input Value**: 
-    * `kernel_id`
-    * `subdir`
-    * `canonical: str | None = None`
-    * `filename: str | None = None`
-    * `extra_labels: dict[str, str] = {}`
+    * `reporter: ProgressReporter` : An instance of ProgressReporter to track and report progress(currently not used)
+    * `kernel_id: KernelId`: Identifier for the kernel being used
+    * `subdir: str`: path for organizing files or outputs
+    * `canonical: str | None = None`: Optional canonical name or path for reference
+    * `filename: str | None = None`: Optional filename to use for output or identification
+    * `extra_labels: dict[str, str] = {}`: Additional labels as a dictionary
 * **Response Value**:
     * `dict[str, Any]`: Contains a `bgtask_id` for the background commit operation, the `kernel_id`, and the `path` (if a filename is specified).
 * **Side Effects**:
@@ -267,9 +268,9 @@ Status: Draft
 ### `push_image`
 * **Description**: Pushes a locally built or committed image to a specified container registry.
 * **Input Value**:
-    * `image_ref: ImageRef`
-    * `registry_conf: ImageRegistry`
-    * `timeout: float | None | Sentinel = Sentinel.TOKEN``
+    * `image_ref: ImageRef`: Reference to the container image
+    * `registry_conf: ImageRegistry`: Configuration for the image registry
+    * `timeout: float | None | Sentinel = Sentinel.TOKEN` : Timeout value in seconds, or a sentinel for not setting timeout
 * **Response Value**:
     * `None`
 * **Side Effects**:
@@ -282,14 +283,14 @@ Status: Draft
 ### `purge_images`
 * **Description**: Removes specified local container images from the agent's host.
 * **Input Value**:
-    * `requset: PurgeImagesReq`
-        * `image_canonicals: list[str]`
-        * `force: bool`
-        * `noprune: bool`
+    * `request: PurgeImagesReq`
+        * `image_canonicals: list[str]` - List of image canonical names to be purged
+        * `force: bool = False` - If true, forces removal of images even if they are in use
+        * `noprune: bool = False` - If true, prevents removal of untagged parent images
 * **Response Value**:
     * `PurgeImagesResp`: 
-        * `image: str`
-        * `error: Optional[str] = None`
+        * `image: str` - The canonical name of the image that was processed.
+        * `error: Optional[str] = None` - Error message if deletion failed; otherwise, None
 * **Side Effects**:
     * For each image specified in `request.images`:
         Attempts to delete the image using `docker.images.delete()` with `force` and `noprune` flags
@@ -300,8 +301,8 @@ Status: Draft
 ### `shutdown_service`
 * **Description**: Shuts down a running service within a kernel's container.
 * **Input Value**:
-    * `kernel_id: KernelId`
-    * `service: str`
+    * `kernel_id: KernelId`: Id of the kernel to send message
+    * `service: str`: Name of service
 * **Response Value**:
     * `None`
 * **Side Effects**:
@@ -313,9 +314,9 @@ Status: Draft
 ### `accept_file`
 * **Description**: Uploads a file into a kernel's environment.
 * **Input Value**:
-    * `kernel_id: KernelId`
-    * `filename: str`
-    * `filedata`
+    * `kernel_id: KernelId`: Id of the kernel to upload file
+    * `filename: str`: Name of file
+    * `filedata`: Binary data that wants to save
 * **Response Value**:
     * `None`.
 * **Side Effects**:
@@ -331,8 +332,8 @@ Status: Draft
 ### `download_file`
 * **Description**: Retrieves a specified path (file or directory) from within the container's /home/work directory as a tar archive.
 * **Input Value**:
-    * `kernel_id: KernelId`
-    * `filepath: str`
+    * `kernel_id: KernelId`: Id of the kernel to download from
+    * `filepath: str`: Path within `/home/work` to download file or directory
 * **Response Value**:
     * The raw bytes of the tar archive containing the content at `/home/work/filepath`. 
         * If `/home/work/filepath` is a single file, the archive will contain that file
@@ -347,8 +348,8 @@ Status: Draft
 ### `download_single`
 * **Description**: DRetrieves the content of a single file from within the container's /home/work directory.
 * **Input Value**:
-    * `kernel_id: KernelId`
-    * `filepath: str`
+    * `kernel_id: KernelId`: Id of the kernel to download file from
+    * `filepath: str`: Path within `/home/work` to download file
 * **Response Value**:
     * `bytes`: The raw content bytes of the single file specified by `/home/work/filepath`
 * **Side Effects**:
@@ -364,8 +365,8 @@ Status: Draft
 ### `list_files`
 * **Description**: Lists files and directories at a given path within the kernel's /home/work directory
 * **Input Value**:
-    * `kernel_id: KernelId`
-    * `filepath: str`
+    * `kernel_id: KernelId`: Id of the kernel to list files from
+    * `filepath: str`: Path within `/home/work` to list files and directories
 * **Response Value**:
     * A Json data
         * `"files": str` - A JSON string. When parsed, this string yields a list of objects, where each object represents a file or directory and contains details.
@@ -381,7 +382,7 @@ Status: Draft
 ### `shutdown`
 * **Description**: Initiates the shutdown process for the agent.
 * **Input Value**:
-    * `stop_signal: signal.Signals`
+    * `stop_signal: signal.Signals`: Specifies the signal to use for agent shutdown (currently, only `signal.SIGTERM` is meaningful)
 * **Response Value**:
     * `None`
 * **Side Effects**:
