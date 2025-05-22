@@ -234,169 +234,197 @@ Status: Draft
 
 ### `get_commit_status`
 * **Description**: Checks the status of an ongoing or previous commit operation for a kernel.
+* **Input Value**:
+    * `kernel_id: KernelId`
+    * `subdir: str`
 * **Response Value**:
-    * `dict[str, Any]`: Contains the `kernel_id` and the `status` (e.g., "pending", "completed", "failed") of the commit.
+    * `CommitStatus`
+        * If image commit is ongoing(If lock_path(image-comit-path / subdir / lock / kernel_id) exists), response value is `CommitStatus.ONGOING`
+        * If image commit is completed(If lock_path doesn't exit), response value is `CommitStatus.READY`
 * **Side Effects**:
-    * Calls `self.agent.get_commit_status()`.
-
+    * Calls kernel with `kernel_id` a `check_duplicate_commit(kernel_id, subdir)` method.
 ---
 
 ### `commit`
 * **Description**: Commits the current state of a kernel's container (or a subdirectory within it) to a new image.
+* **Input Value**: 
+    * `kernel_id`
+    * `subdir`
+    * `canonical: str | None = None`
+    * `filename: str | None = None`
+    * `extra_labels: dict[str, str] = {}`
 * **Response Value**:
     * `dict[str, Any]`: Contains a `bgtask_id` for the background commit operation, the `kernel_id`, and the `path` (if a filename is specified).
 * **Side Effects**:
-    * Starts a background task (`_commit`) via `self.agent.background_task_manager`.
-    * The `_commit` task calls `self.agent.commit()`, which involves:
-        * **Image Creation**: Creating a new container image from the state of the running kernel's container.
-        * May produce events related to the commit progress/completion.
+    * Call kernel's `commit` method with same parameters
+        * Creates necessary directories for the specified output path and lock_path
+        * Commit new image with provided canonical and labels
+        * If `filename` provided, the newly created Docker image is exported as a gzipped tarball to `path / filename`. After a successful export, this intermediate Docker image (created in the previous step) is deleted.
+        * lock_path will be removed after all commit process
 
 ---
 
 ### `push_image`
 * **Description**: Pushes a locally built or committed image to a specified container registry.
+* **Input Value**:
+    * `image_ref: ImageRef`
+    * `registry_conf: ImageRegistry`
+    * `timeout: float | None | Sentinel = Sentinel.TOKEN``
 * **Response Value**:
-    * `dict[str, Any]`: Contains a `bgtask_id` for the background push operation and the `canonical` name of the image being pushed.
+    * `None`
 * **Side Effects**:
-    * Starts a background task (`_push_image`) via `self.agent.background_task_manager`.
-    * The `_push_image` task calls `self.agent.push_image()`, which involves:
-        * **Image Push**: Uploading the image layers to the target registry.
-        * May produce events related to the push progress/completion.
+    * If image_ref is local, agent do nothing
+    * Push image by container runtime with auth cred created with registry username and password
+    * If Image push fails, raise `RuntimeError`
 
 ---
 
-### `purge_images` (RPCFunctionRegistryV2)
+### `purge_images`
 * **Description**: Removes specified local container images from the agent's host.
+* **Input Value**:
+    * `requset: PurgeImagesReq`
+        * `image_canonicals: list[str]`
+        * `force: bool`
+        * `noprune: bool`
 * **Response Value**:
-    * `PurgeImagesResp`: An object detailing the results of the purge operation (e.g., which images were successfully deleted, any errors).
+    * `PurgeImagesResp`: 
+        * `image: str`
+        * `error: Optional[str] = None`
 * **Side Effects**:
-    * Calls `self.agent.purge_images()`, which involves:
-        * **Image Deletion**: Removing the specified images from the local image store.
-        * May produce events related to image deletion.
-
----
-
-### `get_local_config`
-* **Description**: Retrieves parts of the agent's local configuration.
-* **Response Value**:
-    * `Mapping[str, Any]`: A dictionary containing selected agent and watcher configurations (e.g., `abuse-report-path`).
-* **Side Effects**:
-    * Reads its own in-memory `local_config`.
+    * For each image specified in `request.images`:
+        Attempts to delete the image using `docker.images.delete()` with `force` and `noprune` flags
+    * If an image deletion fails, `PurgeImagesResp` returned with an `error` field filled
 
 ---
 
 ### `shutdown_service`
 * **Description**: Shuts down a running service within a kernel's container.
+* **Input Value**:
+    * `kernel_id: KernelId`
+    * `service: str`
 * **Response Value**:
-    * The result from `self.agent.shutdown_service()` (the exact type is not specified in the RPC signature, could be status or `None`).
+    * `None`
 * **Side Effects**:
-    * Calls `self.agent.shutdown_service()`. This might involve sending signals or commands to the service process within the container to terminate it.
+    * Calls kernel with `kernel_id` a `shutdown_service(service)` method.
+        * Inside kernel, it calls `self.runner.feed_shutdown_service(service)`
 
 ---
 
-### `upload_file`
+### `accept_file`
 * **Description**: Uploads a file into a kernel's environment.
+* **Input Value**:
+    * `kernel_id: KernelId`
+    * `filename: str`
+    * `filedata`
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Calls `self.agent.accept_file()`, which writes the provided `filedata` to the specified `filename` within the kernel's filesystem (potentially in a mounted volume or the container's writable layer).
+    * Calls kernel with `kernel_id` a `accept_file(filename, filedata)` method.
+        * If user tries to download file outside `/home/work`, `PermissionError` occurs
+        * File is created under `{agent_config["container"]["scratch-root"]}/{kernel_id}/work/home/work/`
+        * Parent directories for this target host path are created if they do not already exist
+        * Raises a `RuntimeError` when if an `OSError` (e.g., disk full, host filesystem permission issues) occurs during the directory creation or file writing process on the host
+
 
 ---
 
 ### `download_file`
-* **Description**: Downloads a file or directory (potentially archived) from a kernel's environment.
+* **Description**: Retrieves a specified path (file or directory) from within the container's /home/work directory as a tar archive.
+* **Input Value**:
+    * `kernel_id: KernelId`
+    * `filepath: str`
 * **Response Value**:
-    * The file data (e.g., `bytes` or a stream, depending on `self.agent.download_file()` implementation).
+    * The raw bytes of the tar archive containing the content at `/home/work/filepath`. 
+        * If `/home/work/filepath` is a single file, the archive will contain that file
+        * If it's a directory, the archive will contain the directory and its contents.
 * **Side Effects**:
-    * Calls `self.agent.download_file()` to read the file/directory from the kernel's filesystem.
-
+    * Calls kernel with `kernel_id` a `download_file(filepath)` method.
+        * If user tries to download file outside `/home/work`, `PermissionError` occurs
+        * If file is over 1 MiB, `ValueError` occurs
+        * If unknown docker error occurs, `RuntimeError` raises
 ---
 
 ### `download_single`
-* **Description**: Downloads a single file from a kernel's environment.
+* **Description**: DRetrieves the content of a single file from within the container's /home/work directory.
+* **Input Value**:
+    * `kernel_id: KernelId`
+    * `filepath: str`
 * **Response Value**:
-    * The file data (e.g., `bytes` or a stream, depending on `self.agent.download_single()` implementation).
+    * `bytes`: The raw content bytes of the single file specified by `/home/work/filepath`
 * **Side Effects**:
-    * Calls `self.agent.download_single()` to read the specified file from the kernel's filesystem.
+    * Calls kernel with `kernel_id` a `download_single(filepath)` method.
+        * If user tries to download file outsid `/home/work`, `PermissionError` occurs
+        * If file is over 1 MiB, `ValueError` occurs
+        * If the tar archive contains more than one entry (i.e., it's not a single file archive as expected), a `ValueError` raises
+        * If the single file cannot be extracted or read from the archive (e.g., archive is malformed or the expected entry is not a readable file), a `ValueError` is raised
+        * If unknown docker error occurs, `RuntimeError` raises
 
 ---
 
 ### `list_files`
-* **Description**: Lists files and directories at a given path within a kernel's environment.
+* **Description**: Lists files and directories at a given path within the kernel's /home/work directory
+* **Input Value**:
+    * `kernel_id: KernelId`
+    * `filepath: str`
 * **Response Value**:
-    * A list of file/directory entries (the exact structure depends on `self.agent.list_files()` implementation).
+    * A Json data
+        * `"files": str` - A JSON string. When parsed, this string yields a list of objects, where each object represents a file or directory and contains details.
+        * `"errors": str` - Any error output captured from the standard error stream of the docker exec command or the script executed within the container. This will be an empty string if no errors occurred.
+        * `"abspath": str` - The original `file_path` argument that was passed to the method for listing.
 * **Side Effects**:
-    * Calls `self.agent.list_files()` to inspect the filesystem within the kernel's environment.
+    * Calls kernel with `kernel_id` a `list_files(path)` method.
+        * If user tries to download file outsid `/home/work`, `PermissionError` occurs
+        * Getting lists files and directories is achieved by executing a script inside the container, with running subprocess.
 
 ---
 
-### `shutdown_agent`
+### `shutdown`
 * **Description**: Initiates the shutdown process for the agent.
+* **Input Value**:
+    * `stop_signal: signal.Signals`
 * **Response Value**:
-    * `None` (currently, as the implementation is `pass`).
+    * `None`
 * **Side Effects**:
-    * **TODO**: The implementation is noted as a TODO. A full implementation would likely:
-        * Terminate all running kernels (**Container Deletion** for all kernels).
-        * Clean up any other resources.
-        * Stop the agent process itself.
-
+    * Task Cancellation:
+        * Cancels the agent's main socket communication task
+        * Shuts down any implementation-specific periodic task groups (ex Docker-related ptask group)
+        * Cancels all ongoing asynchronous batch execution tasks
+        * Cancels all scheduled timer tasks.
+        * Stops and cancels the Docker event monitoring task (if applicable)
+    * Kernel and Container Lifecycle Management:
+        * For every registered kernel:
+            * Closes the kernel's runner
+            * Calls the kernel object's own `close()` method for individual cleanup
+        * Persists Kernel Registry: The current state of `self.kernel_registry` is serialized and written to a file with the name `{agent_config['container']['var-base-path']}/last_registry.{self.local_instance_id}.dat`
+        * Conditional Full Kernel Destruction (if stop_signal is SIGTERM):
+            * All registered kernels are explicitly signaled for destruction (`LifecycleEvent.DESTROY` with reason `AGENT_TERMINATION`).
+        * The shutdown process waits for these destruction operations to complete before proceeding. This ensures containers are removed
+    * Event System and Handler Shutdown:
+        * The container lifecycle event handler task is gracefully stopped.
+        * An `AgentTerminatedEvent` with reason="shutdown" is produced
+        * The event producer and event dispatcher components are closed.
+    * External Service and Resource Cleanup:
+        * Connection pools to external services (ex. Redis streams, Redis stats) are closed
+        * Implementation-specific metadata server resources are cleaned up
+        * The connection to the container engine (ex. Docker client) is closed
 ---
 
 ### `create_local_network`
-* **Description**: Creates a local (e.g., Docker) network on the agent's host.
+* **Description**: Creates a container bridge network
+* **Input Value**:
+    * `network_name: str`: name of network that wants to make
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Calls `self.agent.create_local_network()` to interact with the container runtime to create the network.
+    * Bridge Network with given network_name, and label `"ai.backend.cluster-network": "1"`
 
 ---
 
 ### `destroy_local_network`
-* **Description**: Destroys a local network on the agent's host.
+* **Description**: Destroys container network
+* **Input value**:
+    * `network_name: str`: network name wants to destroy
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Calls `self.agent.destroy_local_network()` to interact with the container runtime to remove the network.
-
----
-
-### `reset_agent`
-* **Description**: Resets the agent by destroying all currently running kernels.
-* **Response Value**:
-    * `None` (after all kernel destruction tasks are gathered).
-* **Side Effects**:
-    * Iterates through all kernels in `self.agent.kernel_registry`.
-    * For each kernel:
-        * Schedules `self.agent.destroy_kernel()` which leads to:
-            * **Container Deletion**.
-            * **Event Production** (e.g., `KernelDestroyedEvent`).
-        * Exceptions during individual kernel destruction are captured by `self.error_monitor` and logged.
-
----
-
-### `assign_port`
-* **Description**: Assigns an available port from the agent's pool.
-* **Response Value**:
-    * `int`: An available port number.
-* **Side Effects**:
-    * Removes a port from `self.agent.port_pool`.
-
----
-
-### `release_port`
-* **Description**: Releases a previously assigned port back to the agent's pool.
-* **Response Value**:
-    * `None`.
-* **Side Effects**:
-    * Adds the `port_no` back to `self.agent.port_pool`.
-
----
-
-### `scan_gpu_alloc_map`
-* **Description**: Scans and returns the current GPU allocation map based on running kernels.
-* **Response Value**:
-    * `Mapping[str, Any]`: A dictionary mapping identifiers (likely GPU IDs or kernel IDs) to allocation information.
-* **Side Effects**:
-    * Calls an external utility `scan_gpu_alloc_map` which likely inspects system state or container configurations to determine GPU usage by kernels.
-
----
+    * Destroy container network name with given parameter
