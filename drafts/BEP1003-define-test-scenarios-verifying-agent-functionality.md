@@ -279,12 +279,12 @@ Status: Draft
         * `extra_labels`: `{"author": "test_user", "version": "1.0"}`.
 * **Then**:
     * The method returns nothing
-    * AND The directory `{base_commit_path}/test_commit_no_export/` is created on the host if it didn't exist.
-    * AND The directory `{base_commit_path}/test_commit_no_export/lock/` is created on the host if it didn't exist.
-    * AND A new Docker image tagged `myimage:latest` exists in the local Docker image list.
-    * AND The created Docker image `myimage:latest` includes the labels `author="test_user"` and `version="1.0"`.
-    * AND No gzipped tarball file is created on the host filesystem (because `filename` was `None`).
-    * AND The Docker image `myimage:latest` is not deleted from the local Docker image list by this operation.
+    * The directory `{base_commit_path}/test_commit_no_export/` is created on the host if it didn't exist.
+    * The directory `{base_commit_path}/test_commit_no_export/lock/` is created on the host if it didn't exist.
+    * A new Docker image tagged `myimage:latest` exists in the local Docker image list.
+    * The created Docker image `myimage:latest` includes the labels `author="test_user"` and `version="1.0"`.
+    * No gzipped tarball file is created on the host filesystem (because `filename` was `None`).
+    * The Docker image `myimage:latest` is not deleted from the local Docker image list by this operation.
 
 
 ### Test Scenario 2 - Commit with Export
@@ -305,11 +305,11 @@ Status: Draft
         * `extra_labels`: `{"status": "exported"}`.
 * **Then**:
     * The method returns nothing
-    * AND The directory `{base_commit_path}/test_commit_with_export/` is created on the host if it didn't exist.
-    * AND The directory `{base_commit_path}/test_commit_with_export/lock/` is created on the host if it didn't exist.
-    * AND A lock file named `{kernel_id_VALID}` is created at the path `{base_commit_path}/test_commit_with_export/lock/{kernel_id_VALID}` on the host during the operation and is removed upon completion or failure.
-    * AND A gzipped tarball file named `exported_image` exists on the host filesystem at the path `{base_commit_path}/test_commit_with_export/exported_image`.
-    * AND The Docker image `myimage:exported_commit` no longer exists in the local Docker image list
+    * The directory `{base_commit_path}/test_commit_with_export/` is created on the host if it didn't exist.
+    * The directory `{base_commit_path}/test_commit_with_export/lock/` is created on the host if it didn't exist.
+    * A lock file named `{kernel_id_VALID}` is created at the path `{base_commit_path}/test_commit_with_export/lock/{kernel_id_VALID}` on the host during the operation and is removed upon completion or failure.
+    * A gzipped tarball file named `exported_image` exists on the host filesystem at the path `{base_commit_path}/test_commit_with_export/exported_image`.
+    * The Docker image `myimage:exported_commit` no longer exists in the local Docker image list
 
 
 ### Test Scenario 3 - Commit with No Canonical Name
@@ -328,12 +328,12 @@ Status: Draft
         * `extra_labels`: `{}`.
 * **Then**:
     * The method returns nothing
-    * AND The directory `{base_commit_path}/test_commit_no_canonical/` is created on the host if it didn't exist.
-    * AND The directory `{base_commit_path}/test_commit_no_canonical/lock/` is created on the host if it didn't exist.
-    * AND A lock file named `{kernel_id_VALID}` is created at `{base_commit_path}/test_commit_no_canonical/lock/{kernel_id_VALID}` and subsequently removed.
-    * AND A new Docker image is created (its identifier, e.g., image ID, should be verifiable; specific tagging like `<none>:<none>` depends on Docker's default commit behavior).
-    * AND No gzipped tarball file is created on the host filesystem.
-    * AND The created Docker image is not deleted by this operation.
+    * The directory `{base_commit_path}/test_commit_no_canonical/` is created on the host if it didn't exist.
+    * The directory `{base_commit_path}/test_commit_no_canonical/lock/` is created on the host if it didn't exist.
+    * A lock file named `{kernel_id_VALID}` is created at `{base_commit_path}/test_commit_no_canonical/lock/{kernel_id_VALID}` and subsequently removed.
+    * A new Docker image is created (its identifier, e.g., image ID, should be verifiable; specific tagging like `<none>:<none>` depends on Docker's default commit behavior).
+    * No gzipped tarball file is created on the host filesystem.
+    * The created Docker image is not deleted by this operation.
 
 
 ### Test Scenario 4 - Commit for a Non-Existent Kernel ID
@@ -366,8 +366,8 @@ Status: Draft
         * Call 2: `kernel_id_A`, `subdir_X`, `canonical="img2:tag2"`, `filename="f2.tar.gz"`
 * **Then**:
     * One of the calls (e.g., Call 1) completes successfully.
-    * AND The other call (e.g., Call 2) completes after call 1
-    * AND Only one set of the expected successful side effects occurs:
+    * The other call (e.g., Call 2) completes after call 1
+    * Only one set of the expected successful side effects occurs:
         * EITHER a Docker image `img1:tag1` is temporarily created, file `f1.tar.gz` is exported to `{base_commit_path}/subdir_X/f1.tar.gz`, and image `img1:tag1` is deleted.
         * Then a Docker image `img2:tag2` is temporarily created, file `f2.tar.gz` is exported to `{base_commit_path}/subdir_X/f2.tar.gz`, and image `img2:tag2` is deleted.
         * Finally file `f1.tar.gz`, `f2.tar.gz` both exists
@@ -412,7 +412,7 @@ Status: Draft
         * `timeout`: A reasonable value (e.g., `300.0`) or the default `Sentinel.TOKEN`.
 * **Then**:
     * The method completes successfully and returns `None` (no exception is raised).
-    * AND The Docker image (derived from `image_to_push_private.canonical`) is successfully pushed to and now exists in the remote private registry `myprivatereg.example.com`. (This would be verified by checking the remote registry).
+    * The Docker image (derived from `image_to_push_private.canonical`) is successfully pushed to and now exists in the remote private registry `myprivatereg.example.com`. (This would be verified by checking the remote registry).
 
 
 ### Test Scenario 2 - Attempt to Push an Image Marked as Local
@@ -432,8 +432,8 @@ Status: Draft
         * `timeout`: A reasonable value or the default.
 * **Then**:
     * The method completes successfully and returns `None` immediately.
-    * AND No attempt is made to push the image (derived from `local_image_ref.canonical`) to any remote registry.
-    * AND No Docker push-related errors are logged or raised.
+    * No attempt is made to push the image (derived from `local_image_ref.canonical`) to any remote registry.
+    * No Docker push-related errors are logged or raised.
 
 
 ### Test Scenario 3 - Push Failure due to Invalid Authentication
@@ -459,7 +459,7 @@ Status: Draft
         * `timeout`: A reasonable value or the default.
 * **Then**:
     * A `RuntimeError` is raised by the method.
-    * AND The image (derived from `image_for_auth_fail.canonical`) is not pushed to the remote registry.
+    * The image (derived from `image_for_auth_fail.canonical`) is not pushed to the remote registry.
 
 
 ### Test Scenario 4 - Push Operation Timeout
@@ -480,7 +480,7 @@ Status: Draft
         * `timeout`: A very short float value (e.g., `0.01` seconds) known to be less than the expected push completion time.
 * **Then**:
     * A `RuntimeError` is raised by the method.
-    * AND The image (derived from `large_image_for_timeout.canonical`) is not completely pushed or is not present in the remote registry.
+    * The image (derived from `large_image_for_timeout.canonical`) is not completely pushed or is not present in the remote registry.
 
 ---
 
@@ -511,9 +511,9 @@ Status: Draft
         * `noprune = False`
 * **Then**:
     * The method returns a `PurgeImagesResp` object (let's call the returned instance `overall_response`).
-    * AND `overall_response.responses` is a list containing one item.
-    * AND The item in `overall_response.responses` has `image` field with value `"image-to-delete:v1"` and its `error` field is `None` (or not present, indicating success).
-    * AND The Docker image `"image-to-delete:v1"` no longer exists in the local Docker storage.
+    * `overall_response.responses` is a list containing one item.
+    * The item in `overall_response.responses` has `image` field with value `"image-to-delete:v1"` and its `error` field is `None` (or not present, indicating success).
+    * The Docker image `"image-to-delete:v1"` no longer exists in the local Docker storage.
 
 
 ### Test Scenario 2 - Successfully Purge Multiple Existing Images
@@ -527,9 +527,9 @@ Status: Draft
         * `noprune = False`
 * **Then**:
     * The method returns a `PurgeImagesResp` object (`overall_response`).
-    * AND `overall_response.responses` is a list containing two items.
-    * AND Each item in `overall_response.responses` indicates success for its respective image (e.g., `image` field matches the input image name, `error` field is `None`).
-    * AND The Docker images `"image-a:latest"` and `"image-b:1.0"` no longer exist in the local Docker storage.
+    * `overall_response.responses` is a list containing two items.
+    * Each item in `overall_response.responses` indicates success for its respective image (e.g., `image` field matches the input image name, `error` field is `None`).
+    * The Docker images `"image-a:latest"` and `"image-b:1.0"` no longer exist in the local Docker storage.
 
 
 ### Test Scenario 3 - Attempt to Purge a Non-Existent Image
@@ -543,9 +543,9 @@ Status: Draft
         * `noprune = False`
 * **Then**:
     * The method returns a `PurgeImagesResp` object (`overall_response`).
-    * AND `overall_response.responses` is a list containing one item.
-    * AND The item in `overall_response.responses` has `image = "ghost-image:v0"` and its `error` field contains an error message (e.g., indicating "No such image" or "image not found").
-    * AND The local Docker storage state regarding `"ghost-image:v0"` remains unchanged (it still does not exist).
+    * `overall_response.responses` is a list containing one item.
+    * The item in `overall_response.responses` has `image = "ghost-image:v0"` and its `error` field contains an error message (e.g., indicating "No such image" or "image not found").
+    * The local Docker storage state regarding `"ghost-image:v0"` remains unchanged (it still does not exist).
 
 
 ### Test Scenario 4 - Attempt to Purge an Image in Use (Without Force)
@@ -560,10 +560,10 @@ Status: Draft
         * `noprune = False`
 * **Then**:
     * The method returns a `PurgeImagesResp` object (`overall_response`).
-    * AND `overall_response.responses` is a list containing one item.
-    * AND The item in `overall_response.responses` has `image = "busy-image:stable"` and its `error` field contains an error message indicating the image is in use (ex. "conflict: unable to delete image...image is being used by running container...").
-    * AND The Docker image `"busy-image:stable"` still exists in the local Docker storage.
-    * AND The container using `"busy-image:stable"` is still running.
+    * `overall_response.responses` is a list containing one item.
+    * The item in `overall_response.responses` has `image = "busy-image:stable"` and its `error` field contains an error message indicating the image is in use (ex. "conflict: unable to delete image...image is being used by running container...").
+    * The Docker image `"busy-image:stable"` still exists in the local Docker storage.
+    * The container using `"busy-image:stable"` is still running.
 
 
 ### Test Scenario 5 - Successfully Purge an Image in Use (With Force)
@@ -578,10 +578,10 @@ Status: Draft
         * `noprune = False`
 * **Then**:
     * The method returns a `PurgeImagesResp` object (`overall_response`).
-    * AND `overall_response.responses` is a list containing one item.
-    * AND The item in `overall_response.responses` has `image = "busy-image:force-delete"` and its `error` field is `None`.
-    * AND The Docker image `"busy-image:force-delete"` no longer exists in the local Docker storage.
-    * AND The container that was using `"busy-image:force-delete"` continues to run
+    * `overall_response.responses` is a list containing one item.
+    * The item in `overall_response.responses` has `image = "busy-image:force-delete"` and its `error` field is `None`.
+    * The Docker image `"busy-image:force-delete"` no longer exists in the local Docker storage.
+    * The container that was using `"busy-image:force-delete"` continues to run
 
 
 ### Test Scenario 6 - Purge a Mix of Existing, Non-Existent, and In-Use (Without Force) Images
@@ -597,12 +597,12 @@ Status: Draft
         * `noprune = False`
 * **Then**:
     * The method returns a `PurgeImagesResp` object (`overall_response`)
-    * AND `overall_response.responses` is a list containing three items
-    * AND The item for `"delete-me:ok"` indicates success (error is `None`)
-    * AND The item for `"iamghost:hmm"` indicates failure with an error message
-    * AND The item for `"dont-delete-me:busy"` indicates failure with an error message
-    * AND The Docker image `"delete-me:ok"` no longer exists in local Docker storage
-    * AND The Docker image `"dont-delete-me:busy"` still exists in local Docker storage
+    * `overall_response.responses` is a list containing three items
+    * The item for `"delete-me:ok"` indicates success (error is `None`)
+    * The item for `"iamghost:hmm"` indicates failure with an error message
+    * The item for `"dont-delete-me:busy"` indicates failure with an error message
+    * The Docker image `"delete-me:ok"` no longer exists in local Docker storage
+    * The Docker image `"dont-delete-me:busy"` still exists in local Docker storage
 
 
 ### Test Scenario 7 - Purge an Empty List of Images
@@ -641,7 +641,7 @@ Status: Draft
         * `service`: `"active_service_A"`
 * **Then**:
     * The `shutdown_service` will return nothing
-    * AND The service `"active_service_A"` inside the container associated with `kernel_id_VALID` is no longer running
+    * The service `"active_service_A"` inside the container associated with `kernel_id_VALID` is no longer running
 
 
 ### Test Scenario 2 - Attempt to Shut Down a Non-Existent Service in a Running Kernel
@@ -684,8 +684,8 @@ Status: Draft
         * `kernel_id`: `kernel_id_VALID`
         * `service`: `"already_stopped_service_D"`
 * **Then**:
-    * AND The service `"already_stopped_service_D"` inside the container for `kernel_id_VALID` remains in its stopped state.
-    * AND No exceptions are raised
+    * The service `"already_stopped_service_D"` inside the container for `kernel_id_VALID` remains in its stopped state.
+    * No exceptions are raised
 
 
 ---
@@ -718,9 +718,9 @@ Status: Draft
         * `filedata`: `b"This is test data."`
 * **Then**:
     * The `accept_file` method returns `None`.
-    * AND A file exists on the host filesystem at the path `{agent_config["container"]["scratch-root"]}/{kernel_id_VALID}/work/uploaded_file.txt`.
-    * AND The content of the host file at that path is `b"This is test data."`.
-    * AND No exceptions are raised by the agent's call.
+    * A file exists on the host filesystem at the path `{agent_config["container"]["scratch-root"]}/{kernel_id_VALID}/work/uploaded_file.txt`.
+    * The content of the host file at that path is `b"This is test data."`.
+    * No exceptions are raised by the agent's call.
 
 ---
 ### Test Scenario 2 - Attempt to Upload File Outside `/home/work` (e.g., using `../` in container path)
@@ -734,7 +734,7 @@ Status: Draft
         * `filedata`: `b"Malicious data"`
 * **Then**:
     * The `accept_file` method raises a `PermissionError`.
-    * AND No file named `attempt_outside.txt` (or similar) is created anywhere outside the designated `{agent_config["container"]["scratch-root"]}/{kernel_id_VALID}/work/` directory on the host.
+    * No file named `attempt_outside.txt` (or similar) is created anywhere outside the designated `{agent_config["container"]["scratch-root"]}/{kernel_id_VALID}/work/` directory on the host.
 
 ### Test Scenario 3 - Attempt to Upload File to an Absolute Path Outside `/home/work` (e.g., `/etc/`)
 
@@ -747,7 +747,7 @@ Status: Draft
         * `filedata`: `b"System data attempt"`
 * **Then**:
     * The `accept_file` method raises a `PermissionError`.
-    * AND No file is created at `/etc/new_file_by_agent` (or its host equivalent) on the host filesystem.
+    * No file is created at `/etc/new_file_by_agent` (or its host equivalent) on the host filesystem.
 
 ### Test Scenario 4 - Upload to a Non-Existent or Stopped Kernel
 
@@ -789,8 +789,8 @@ Status: Draft
         * `filepath`: `"/home/work/data/sample.txt"` (Path inside the container)
 * **Then**:
     * The method returns a `bytes` object.
-    * AND When the returned `bytes` object is interpreted as a tar archive, it contains a single entry (e.g., `sample.txt` or `data/sample.txt` depending on `get_archive` behavior for a specific file path) whose content is `b"Test content for download."`.
-    * AND No exceptions are raised by the agent's method.
+    * When the returned `bytes` object is interpreted as a tar archive, it contains a single entry (e.g., `sample.txt` or `data/sample.txt` depending on `get_archive` behavior for a specific file path) whose content is `b"Test content for download."`.
+    * No exceptions are raised by the agent's method.
 
 
 ### Test Scenario 2 - Successfully Download an Existing Directory
@@ -806,8 +806,8 @@ Status: Draft
         * `filepath`: `"/home/work/project_files"`
 * **Then**:
     * The method returns a `bytes` object.
-    * AND When the returned `bytes` object is interpreted as a tar archive, it contains entries corresponding to `project_files/file1.py` (with content `b"print('hello')"`) and `project_files/docs/readme.md` (with content `b"# Project"`).
-    * AND No exceptions are raised by the agent's method.
+    * When the returned `bytes` object is interpreted as a tar archive, it contains entries corresponding to `project_files/file1.py` (with content `b"print('hello')"`) and `project_files/docs/readme.md` (with content `b"# Project"`).
+    * No exceptions are raised by the agent's method.
 
 
 ### Test Scenario 3 - Attempt to Download File/Directory Outside `/home/work`
@@ -887,8 +887,8 @@ Status: Draft
         * `filepath`: `"/home/work/documents/report.txt"` (Path inside the container)
 * **Then**:
     * The method returns a `bytes` object.
-    * AND The returned `bytes` object is equal to `b"This is the final report."`.
-    * AND No exceptions are raised by the agent's method.
+    * The returned `bytes` object is equal to `b"This is the final report."`.
+    * No exceptions are raised by the agent's method.
 
 
 ### Test Scenario 2 - Attempt to Download a Non-Empty Directory (Expected to Fail due to Multiple Entries in Tar)
@@ -985,10 +985,10 @@ Status: Draft
         * `path`: `"/home/work/documents"` (Path inside the container)
 * **Then**:
     * The method returns a dictionary, let's call it `response_data`.
-    * AND `response_data["abspath"]` is equal to `"/home/work/documents"`.
-    * AND `response_data["errors"]` is an empty string.
-    * AND `response_data["files"]` is a non-empty JSON string.
-    * AND When the JSON string in `response_data["files"]` is parsed, it yields a list containing objects representing at least `report.docx` and `images`, each with correct metadata(ex. filename) 
+    * `response_data["abspath"]` is equal to `"/home/work/documents"`.
+    * `response_data["errors"]` is an empty string.
+    * `response_data["files"]` is a non-empty JSON string.
+    * When the JSON string in `response_data["files"]` is parsed, it yields a list containing objects representing at least `report.docx` and `images`, each with correct metadata(ex. filename) 
 
 
 ### Test Scenario 2 - Successfully List an Existing Empty Directory
@@ -1003,9 +1003,9 @@ Status: Draft
         * `path`: `"/home/work/empty_dir"`
 * **Then**:
     * The method returns a dictionary `response_data`.
-    * AND `response_data["abspath"]` is equal to `"/home/work/empty_dir"`.
-    * AND `response_data["errors"]` is an empty string (or non-critical).
-    * AND `response_data["files"]` is a JSON string that, when parsed, yields an empty list (`[]`).
+    * `response_data["abspath"]` is equal to `"/home/work/empty_dir"`.
+    * `response_data["errors"]` is an empty string (or non-critical).
+    * `response_data["files"]` is a JSON string that, when parsed, yields an empty list (`[]`).
 
 
 ### Test Scenario 3 - Attempt to List a Path Outside `/home/work`
@@ -1031,9 +1031,9 @@ Status: Draft
         * `path`: `"/home/work/this_folder_does_not_exist"`
 * **Then**:
     * The method returns a dictionary `response_data`.
-    * AND `response_data["abspath"]` is equal to `"/home/work/this_folder_does_not_exist"`.
-    * AND `response_data["files"]` is likely an empty string
-    * AND `response_data["errors"]` contains a non-empty string, which includes an error message indicating the path was not found
+    * `response_data["abspath"]` is equal to `"/home/work/this_folder_does_not_exist"`.
+    * `response_data["files"]` is likely an empty string
+    * `response_data["errors"]` contains a non-empty string, which includes an error message indicating the path was not found
 
 
 ### Test Scenario 5 - Attempt to List Files with an Invalid/Non-Existent Kernel ID
@@ -1100,9 +1100,9 @@ Status: Draft
         * `network_name`: `"test-new-network-01"`
 * **Then**:
     * The `create_local_network` method returns `None`
-    * AND A Docker network named `"test-new-network-01"` now exists in the Docker environment.
-    * AND The created network `"test-new-network-01"` has the driver type `"bridge"`.
-    * AND The created network `"test-new-network-01"` has the label `"ai.backend.cluster-network": "1"`.
+    * A Docker network named `"test-new-network-01"` now exists in the Docker environment.
+    * The created network `"test-new-network-01"` has the driver type `"bridge"`.
+    * The created network `"test-new-network-01"` has the label `"ai.backend.cluster-network": "1"`.
 
 ### Test Scenario 2: Attempt to Create a Network That Already Exists
 
@@ -1114,7 +1114,7 @@ Status: Draft
         * `network_name`: `"existing-network-02"`
 * **Then**:
     * The `create_local_network` method raises an exception
-    * AND The state of the existing Docker network `"existing-network-02"` remains unchanged.
+    * The state of the existing Docker network `"existing-network-02"` remains unchanged.
 
 ### Test Scenario 3: Attempt to Create a Network with an Invalid Name Format (Optional, based on Docker/aiodocker validation)
 
@@ -1126,7 +1126,7 @@ Status: Draft
         * `network_name`: `"invalid@name#for_net"`
 * **Then**:
     * The `create_local_network` method raises an exception
-    * AND No new network with the name `"invalid@name#for_net"` is created in the Docker environment.
+    * No new network with the name `"invalid@name#for_net"` is created in the Docker environment.
 
 ---
 
@@ -1150,7 +1150,7 @@ Status: Draft
         * `network_name`: `"delete-me-network-A"`
 * **Then**:
     * The `destroy_local_network` method returns `None`
-    * AND The Docker network `"delete-me-network-A"` no longer exists in the Docker environment.
+    * The Docker network `"delete-me-network-A"` no longer exists in the Docker environment.
 
 ### Test Scenario 2: Attempt to Destroy a Non-Existent Network
 
@@ -1174,5 +1174,5 @@ Status: Draft
         * `network_name`: `"busy-network-C"`
 * **Then**:
     * The `destroy_local_network` method raises an exception
-    * AND The Docker network `"busy-network-C"` still exists in the Docker environment.
-    * AND The container(s) connected to `"busy-network-C"` remain running and connected.
+    * The Docker network `"busy-network-C"` still exists in the Docker environment.
+    * The container(s) connected to `"busy-network-C"` remain running and connected.
