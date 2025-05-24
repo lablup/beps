@@ -159,6 +159,56 @@ We will implement a `Provisioner` for allocating resources and a `Stage` for man
 
 A `Stage` will use a `Provisioner` to allocate resources and wait until the resources are ready. We can collect metrics on the preparation time and dangling status for each resource, and common processing can be handled within the `Stage`.
 
+#### Example of Implementation
+
+```python
+
+class ProvisionStage(Stage[TSpec, TResource]):
+    """
+    A stage that provisions a resource.
+
+    This stage is used to provision a resource using a provisioner.
+    It waits for the spec to be ready and then uses the provisioner to set up the resource.
+    """
+    _provisioner: Provisioner
+    _resource: Optional[TResource]
+    _setup_completed: asyncio.Event
+    _prometheus: Any
+
+    def __init__(self, provisioner: Provisioner):
+        self._provisioner = provisioner
+        self._resource = None
+        self._setup_completed = asyncio.Event()
+    
+    async def setup(self, spec_generator: SpecGenerator[TSpec]) -> None:
+        """
+        Sets up the lifecycle stage.
+        """
+        spec = await spec_generator.wait_for_spec()
+        try:
+            resource = await self._provisioner.setup(spec)
+            self._resource = resource
+        except Exception as e:
+            log.error("Failed to setup resource: %s", e)
+        finally:
+            self._setup_completed.set()
+    
+    async def wait_for_resource(self) -> TResource:
+        await self._setup_completed.wait()
+        if self._resource is None:
+            raise RuntimeError("Resource setup failed")
+        return self._resource
+
+    async def teardown(self) -> None:
+        """
+        Tears down the lifecycle stage.
+        """
+        if self._resource is None:
+            return
+        await self._provisioner.teardown(self._resource)
+        self._resource = None
+```
+
 ### Resource Registration
 
 For structurally cleaning up resources upon kernel termination, we propose the following structure:
