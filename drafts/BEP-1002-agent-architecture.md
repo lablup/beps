@@ -95,7 +95,7 @@ In this architecture, to recover kernels from older versions, **Label informatio
 
 > If we roll back to an older version, how will newly created kernels be recovered?
 
-The current Agent structure faces a problem where **pickle** is used to recover kernels. If we consider a rollback, the new version would also need to use the same path for pickle files. In this work, we will add an implementation that uses a **flag** to disable pickle usage in both the Agent and Manager, allowing the Agent with this flag to be recovered by the Manager. Once stability is ensured, a **breaking change** will be introduced in older versions to transition to a structure that doesn't use pickle.
+The current Agent structure relies on pickle for kernel recovery. If we roll back to a previous version, the new Agent would still need to use pickle in the same way. In this work, we will add an implementation that uses a **flag** to disable pickle usage in both the Agent and Manager, allowing the Agent with this flag to be recovered by the Manager. Once stability is ensured, a **breaking change** will be introduced in older versions to transition to a structure that doesn't use pickle.
 
 ## Implementation Plan
 
