@@ -93,9 +93,9 @@ Status: Draft
         * (DockerAgent.check_image): Uses `aiodocker.images.inspect` to decide whether
             the specified image needs to be pulled or is already present.
         * (DockerAgent.pull_image): Pulls the image via `aiodocker.images.pull`.
-        * (prepare_resource_spec): Loads the kernel resource spec from `resource.txt`
+        * (DockerAgent.prepare_resource_spec): Loads the kernel resource spec from `resource.txt`
             under `config_dir`.
-        * (prepare_scratch):
+        * (DockerAgent.prepare_scratch):
             * If the host platform is `linux`
                 * When `scratch_type` is `memory`
                     * Creates a filesystem in the new kernel’s `scratch_dir`
@@ -125,7 +125,7 @@ Status: Draft
             * `.jupyter/custom/roboto-italic.ttf`
         * (_clone_dotfiles): If `euid` is 0, changes the copied files’ `uid` and `gid`
             to `kernel-uid` and `kernel-gid`.
-        * (prepare_ssh)
+        * (DockerKernelCreationContext.prepare_ssh)
             * Writes the provided SSH key to `config_dir/ssh/id_cluster`.
             * Writes the provided SSH public key to `config_dir/ssh/id_cluster.pub`.
             * If `uid-match` (`KernelFeatures.UID_MATCH`) is set in `kernel_features`,
@@ -133,7 +133,7 @@ Status: Draft
                 `kernel-gid`.
             * If `cluster_info` contains `cluster_ssh_port_mapping`, writes it to
                 `config_dir/ssh/port-mapping.json`.
-        * (mount_krunner)
+        * (DockerKernelCreationContext.mount_krunner)
             * Bind-mounts `runner/su-exec.{arch}.bin` to `/opt/kernel/su-exec`.
             * Bind-mounts `runner/libbaihook.*.{arch}.so` to
                 `/opt/kernel/libbaihook.so`.
@@ -169,9 +169,9 @@ Status: Draft
                 mounts to `resource_spec.mounts`.
             * If a plugin needs extra hooks, bind-mounts `/opt/kernel/{hook}.so` and
                 appends its path to `LD_PRELOAD`.
-        * (get_attached_devices): Calls `get_attached_devices` on each plugin to obtain
+        * (AbstractComputePlugin.get_attached_devices): Calls `get_attached_devices` on each plugin to obtain
             device info to pass to `KernelCreationContext`.
-        * (load_model_definition): Executed only for inference models.
+        * (DockerAgent.load_model_definition): Executed only for inference models.
             * Reads the image’s `CMD` via `aiodocker.images.get` (deprecated; should be
                 replaced with `inspect`).
             * Reads the model definition from `model_definition_yaml`.
@@ -179,7 +179,7 @@ Status: Draft
             `config/kconfig.dat` in pickle format.
         * (restart_kernel__store_config): Serializes the new cluster configuration to
             `config/cluster.json` in pickle format.
-        * (spawn)
+        * (DockerKernelCreationContext.prepare_container)
             * Creates a user bootstrap script `/bootstrap.sh` under the work directory.
                 * If `KernelFeatures.UID_MATCH`, chowns it to `kernel-uid/gid`.
             * Writes `environ.txt` under `config_dir` containing:
@@ -207,7 +207,7 @@ Status: Draft
                     `dotfile["perm"]`.
                 * If `KernelFeatures.UID_MATCH`, chowns each dotfile and its parent
                     directories to `kernel-uid/gid`.
-        * (start_container)
+        * (DockerKernelCreationContext.start_container)
             * If `HostConfig.NetworkMode` is `host`, writes intrinsic port info
                 (`replin`, `replout`, `sshd`, `ttyd`) to
                 `config_dir/intrinsic-ports.json`.
@@ -235,14 +235,14 @@ Status: Draft
                 `_rollback_container_creation` to clean up `scratch` and accelerator
                 resources.
         * (AbstractKernel.init)
-            * (create_code_runner): Creates an `AbstractCodeRunner`
+            * (DockerKernel.create_code_runner): Creates an `AbstractCodeRunner`
                 (`DockerCodeRunner`) object.
         * (AbstractKernel.check_status)
             * Sends a `status` message to the runner to check the kernel runner’s
                 state.
         * (KernelObjectType.get_service_apps)
             * Sends a `get-apps` message to the runner to retrieve service apps.
-        * (start_and_monitor_model_service_health): If the restarted kernel’s
+        * (DockerAgent.start_and_monitor_model_service_health): If the restarted kernel’s
             `session_type` is `INFERENCE`
             * (AbstractKernel.start_model_service)
                 * Sends a `start-model-service` message to the runner to start the
