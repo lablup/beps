@@ -382,7 +382,6 @@ Status: Draft
     * (BaseRunner.complete):
         * Returns the strings to display in the auto-complete list. The current implementation appears to return an empty list.
 
-
 ---
 
 ## `get_logs`
@@ -551,6 +550,7 @@ Status: Draft
             * (AgentRegistry.update_appproxy_endpoint_routes): Reads the wsproxy address of the scaling group for the endpoint from the DB and sends a.POST request to `f"{wsproxy_addr}/v2/endpoints/{endpoint.id}"` to update the endpoint address in the `endpoints` table.
     * Publishes KernelStartedEvent
         * (AgentRegistry.mark_kernel_running): Updates the kernel’s status in the DB to `KernelStatus.RUNNING`.
+
 ---
 
 ## `execute`
