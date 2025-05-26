@@ -46,20 +46,6 @@ Status: Draft
 
 ---
 
-## `sync_kernel_registry`
-* **Description**: Synchronizes the agent's kernel registry with a list provided by the manager. It terminates kernels on the agent that are not in the manager's list and flags kernels in the manager's list that are not on the agent.
-* **Input Value**:
-    * `raw_kernel_session_ids: Iterable[tuple[str, str]]`: list of tuples composed of kernel id and session id
-* **Response Value**:
-    * `None`.
-* **Side Effects**:
-    * For kernel IDs provided by the manager but not found in the agent's local registry:
-        * Agent produces a `KernelTerminatedEvent` with reason `ALREADY_TERMINATED`.
-    * For kernels in the agent's local registry but not in the list provided by the manager:
-        * Calls `self.agent.inject_container_lifecycle_event` with `LifecycleEvent.DESTROY` and reason `NOT_FOUND_IN_MANAGER`.
-
----
-
 ## `check_and_pull`
 * **Description**: Checks if specified container images exist locally and initiates a background task to pull them if they don't or if an update is needed.
 * **Input Value**:
@@ -67,19 +53,18 @@ Status: Draft
 * **Response Value**:
     * `dict[str, str]`: A dictionary mapping image names to the background task IDs responsible for pulling them.
 * **Side Effects**:
-    * For each image:
-        * A background task (`_pull`) is started.
-        * The `_pull` task:
-            * Checks local image presence and digest against `ImageConfig`.
-            * If pulling is required:
-                * Agent produces an `ImagePullStartedEvent`.
-                * Calls `self.agent.pull_image()` to download the image from the specified registry.
-                * Upon successful pull:
-                    * Agent produces an `ImagePullFinishedEvent`.
-                * Upon pull timeout or failure:
-                    * Agent produces an `ImagePullFailedEvent`.
-            * If pulling is not required (image already exists and is up-to-date):
-                * Agent produces an `ImagePullFinishedEvent` (often with a message indicating it already exists).
+    * (check_and_pull):
+        * (DockerAgent.check_image)
+            * (docker.images.inspect): Checks whether the image exists and acts as follows, depending on AutoPullBehavior.
+                * (TAG): If the image exists locally, always returns False so the local image is used.
+                * (DIGEST): Uses the local image only when it exists and its ID matches the supplied image_id; otherwise returns False to trigger a pull.
+                * (NONE): Throws an exception if the image is not found locally.
+        * (If a pull is required → emits ImagePullStartedEvent)
+            * (DockerAgent.pull_image):
+                * (docker.images.pull): Pulls the image specified by image_id.
+                * (on success → emits ImagePullFinishedEvent)
+                * (on failure → emits ImagePullFailedEvent)
+        * (If no pull is required → emits ImagePullFinishedEvent)
 
 ---
 
@@ -95,31 +80,183 @@ Status: Draft
     * `list[dict]`: A list of dictionaries, each containing information about a successfully created kernel (e.g., ID, host, ports, container ID, resource specs).
     * Raises an exception if any kernel creation fails (either the first error or a `TaskGroupError` for multiple failures).
 * **Side Effects**:
-    * For each set of kernel ID and kernel configuration provided:
-        * Calls `self.agent.create_kernel()`, which involves the following flow and side effects:
-            1.  **Preparation & Event**: produce a `KernelPreparingEvent` (if not restarting).
-            2.  **Image Check & Pull**:
-                * If pulling is necessary, emits a `KernelPullingEvent` and then 
-                pulls the image from the registry
-            3.  **Resource Allocation & Event**:
-                * Produce a `KernelCreatingEvent` (if not restarting).
-                * If resource allocation fails, agent produces `DoAgentResourceCheckEvent`
-            4.  **Environment Setup**:
-                * If not restarting, prepares scratch directories
-                * Configures network for the kernel
-                * Mounts virtual folders
-            5.  **Configuration Persistence**: 
-                * Store the cluster config to a kernel-related storage (e.g., scratch space)
-            6.  **Container Creation**:
-                * Prepare and start container
-                * If container failed to prepare or start, `inject_container_lifecycle_event` is called with `LifecycleEvent.DESTROY` and reason `FAILED_TO_CREATE` and raise `AgentError`
-            7.  **Kernel Initialization & Health Check**:
-                * If the kernel fails to start or respond correctly within the timeout period, the `inject_container_lifecycle_event` is called with `LifecycleEvent.DESTROY` and reason `FAILED_TO_START` and raise `AgentError`
-            8.  **Finalization & Event**:
-                * If successful, updates the kernel's state to `RUNNING` in the `kernel_registry`.
-                * Produces a `KernelStartedEvent` with details of the created kernel.
-                * For inference sessions, may start a background task to monitor model service health.
-    * Utilizes a semaphore (`kernel-creation-concurrency`) to limit concurrent kernel creations.
+    * (create_kernels): Applies a semaphore equal to `kernel-creation-concurrency` and
+        executes coroutines that create kernels via `asyncio.gather`.
+        * (DockerAgent.init_kernel_context):
+            * If the image label `ai.backend.base-distro` is present, that value is used
+                as the distro.
+            * If not, the distro is loaded from the `"image:{image_id}:distro"` cache in
+                `redis_stat_pool`, if available.
+            * If the cache is missing, a container is created with
+                `aiodocker.containers.create` to run `ldd --version`; the distro is then
+                read from the container log and cached in `redis_stat_pool`.
+        * (DockerAgent.check_image): Uses `aiodocker.images.inspect` to decide whether
+            the specified image needs to be pulled or is already present.
+        * (DockerAgent.pull_image): Pulls the image via `aiodocker.images.pull`.
+        * (prepare_resource_spec): Loads the kernel resource spec from `resource.txt`
+            under `config_dir`.
+        * (prepare_scratch):
+            * If the host platform is `linux`
+                * When `scratch_type` is `memory`
+                    * Creates a filesystem in the new kernel’s `scratch_dir`
+                        (spawns a subprocess to mount a tmpfs).
+                    * Creates a filesystem in the new kernel’s `tmp_dir`
+                        (spawns a subprocess to mount a tmpfs).
+                * When `scratch_type` is `hostfile`, creates a loop-back file in the new
+                    kernel’s `scratch_root`.
+            * On non-Linux hosts, simply `mkdir`s the `scratch_dir`.
+            * Creates `config_dir` and `work_dir` under `scratch_dir` with permission
+                `0o755`.
+        * (_clone_dotfiles): Copies the following `pkg_resources` files under
+            `ai.backend.runner`:
+            * `jupyter-custom.css`
+            * `logo.svg`
+            * `roboto.ttf`
+            * `roboto-italic.ttf`
+            * `.bashrc`
+            * `.bash_profile`
+            * `.zshrc`
+            * `.vimrc`
+            * `.tmux.conf`
+            * `.jupyter/custom`
+            * `.jupyter/custom/custom.css`
+            * `.jupyter/custom/logo.svg`
+            * `.jupyter/custom/roboto.ttf`
+            * `.jupyter/custom/roboto-italic.ttf`
+        * (_clone_dotfiles): If `euid` is 0, changes the copied files’ `uid` and `gid`
+            to `kernel-uid` and `kernel-gid`.
+        * (prepare_ssh)
+            * Writes the provided SSH key to `config_dir/ssh/id_cluster`.
+            * Writes the provided SSH public key to `config_dir/ssh/id_cluster.pub`.
+            * If `uid-match` (`KernelFeatures.UID_MATCH`) is set in `kernel_features`,
+                changes ownership of the written SSH files to `kernel-uid` and
+                `kernel-gid`.
+            * If `cluster_info` contains `cluster_ssh_port_mapping`, writes it to
+                `config_dir/ssh/port-mapping.json`.
+        * (mount_krunner)
+            * Bind-mounts `runner/su-exec.{arch}.bin` to `/opt/kernel/su-exec`.
+            * Bind-mounts `runner/libbaihook.*.{arch}.so` to
+                `/opt/kernel/libbaihook.so`.
+            * Bind-mounts `runner/dropbearmulti.{arch}.bin` to
+                `/opt/kernel/dropbearmulti`.
+            * Bind-mounts `runner/sftp-server.{arch}.bin` to
+                `/opt/kernel/sftp-server`.
+            * Bind-mounts `runner/tmux.{arch}.bin` to `/opt/kernel/tmux`.
+            * If `sandbox-type` is `"jail"`, bind-mounts `runner/jail.*.{arch}.bin` to
+                `/opt/kernel/jail`.
+            * Bind-mounts `runner/extract_dotfiles.py` to
+                `/opt/kernel/extract_dotfiles.py`.
+            * Bind-mounts `runner/entrypoint.sh` to `/opt/kernel/entrypoint.sh`.
+            * Bind-mounts `runner/fantompass.py` to `/opt/kernel/fantompass.py`.
+            * Bind-mounts `runner/hash_phrase.py` to `/opt/kernel/hash_phrase.py`.
+            * Bind-mounts `runner/words.json` to `/opt/kernel/words.json`.
+            * Bind-mounts `runner/DO_NOT_STORE_PERSISTENT_FILES_HERE.md` to
+                `/home/work/DO_NOT_STORE_PERSISTENT_FILES_HERE.md`.
+            * If the target libc is `musl`, bind-mounts `runner/terminfo.alpine3.8` to
+                `/home/work/.terminfo`.
+            * Volume-mounts the directory set in `local_config.container.krunner_volume`
+                to `/opt/backend.ai`.
+            * Sets the `LD_PRELOAD` environment variable to
+                `/opt/kernel/libbaihook.so` so that `libbaihook.so` loads first.
+            * Bind-mounts the `ai/backend/kernel` package to
+                `/opt/backend.ai/lib/python{pyver}/site-packages/ai/backend/kernel`.
+            * Bind-mounts the `ai/backend/helpers` package to
+                `/opt/backend.ai/lib/python{pyver}/site-packages/ai/backend/helpers`.
+            * Calls `apply_accelerator_allocation` for each accelerator plugin.
+                * Each plugin receives the aiodocker object and generates Docker args
+                    for resource isolation via `generate_docker_args`.
+            * Calls each plugin’s `generate_accelerator_mounts`, adding the returned
+                mounts to `resource_spec.mounts`.
+            * If a plugin needs extra hooks, bind-mounts `/opt/kernel/{hook}.so` and
+                appends its path to `LD_PRELOAD`.
+        * (get_attached_devices): Calls `get_attached_devices` on each plugin to obtain
+            device info to pass to `KernelCreationContext`.
+        * (load_model_definition): Executed only for inference models.
+            * Reads the image’s `CMD` via `aiodocker.images.get` (deprecated; should be
+                replaced with `inspect`).
+            * Reads the model definition from `model_definition_yaml`.
+        * (restart_kernel__store_config): Serializes the new kernel configuration to
+            `config/kconfig.dat` in pickle format.
+        * (restart_kernel__store_config): Serializes the new cluster configuration to
+            `config/cluster.json` in pickle format.
+        * (spawn)
+            * Creates a user bootstrap script `/bootstrap.sh` under the work directory.
+                * If `KernelFeatures.UID_MATCH`, chowns it to `kernel-uid/gid`.
+            * Writes `environ.txt` under `config_dir` containing:
+                * The provided `environ`.
+                * The `self.computer_docker_args["Env"]` entry.
+            * Writes `resource.txt` under `config_dir` containing:
+                * The output of `resource_spec.write_to_file`.
+                * Key–value pairs from each accelerator’s
+                    `instance.generate_resource_data`.
+            * If `internal_data.docker_credentials` exists, saves it to
+                `config_dir/docker-creds.json`.
+            * Copies `environ.txt` to `environ_base.txt` and `resource.txt` to
+                `resource_base.txt` in `config_dir`.
+            * If `internal_data.ssh_keypair` exists and `/home/work/.ssh` is not
+                mounted:
+                * Creates `.ssh` (0700) under the work dir and creates
+                    `authorized_keys`, `id_rsa`, and `id_container` (0600).
+                * If `KernelFeatures.UID_MATCH`, chowns `.ssh` and its files to
+                    `kernel-uid/gid`.
+            * Processes each path in `internal_data.dotfiles`:
+                * Absolute paths → unchanged.
+                * Paths starting with `"/home/"` → into `scratch_dir`.
+                * Others → into the work directory.
+                * Writes each dotfile to the determined path and `chmod`s with
+                    `dotfile["perm"]`.
+                * If `KernelFeatures.UID_MATCH`, chowns each dotfile and its parent
+                    directories to `kernel-uid/gid`.
+        * (start_container)
+            * If `HostConfig.NetworkMode` is `host`, writes intrinsic port info
+                (`replin`, `replout`, `sshd`, `ttyd`) to
+                `config_dir/intrinsic-ports.json`.
+            * Additionally reads `agent-docker-container-opts.json` from the following
+                paths and applies them as container options:
+                * `/etc/backend.ai`
+                * `.config/backend.ai`
+                * `~/.config/backend.ai`
+            * Creates the container via `aiodocker.containers.create`.
+            * Reopens `config_dir/resource.txt` and records:
+                * `container_id`
+                * Additional resource info fetched from plugins via
+                    `generate_resource_data`.
+            * Starts the container via `aiodocker.containers.start`.
+            * If `sudo_session_enabled`, executes
+                `sh -c "mkdir -p /etc/sudoers.d && echo 'work ALL=(ALL:ALL) NOPASSWD:ALL' > /etc/sudoers.d/01-bai-work"`
+                inside the container to enable password-less sudo.
+            * Calls each accelerator’s `get_docker_networks`, obtains DockerNetwork
+                objects via `aiodocker.networks.get`, and connects them.
+            * Calls `container.port` to retrieve the container’s port mappings.
+            * Calls the network plugin’s `get_capabilities` to fetch network features.
+                * If the `GLOBAL` capability exists, calls `expose_ports` to expose the
+                    ports to the public network after the container starts.
+            * On an exception in `_clean_scratch`, calls
+                `_rollback_container_creation` to clean up `scratch` and accelerator
+                resources.
+        * (AbstractKernel.init)
+            * (create_code_runner): Creates an `AbstractCodeRunner`
+                (`DockerCodeRunner`) object.
+        * (AbstractKernel.check_status)
+            * Sends a `status` message to the runner to check the kernel runner’s
+                state.
+        * (KernelObjectType.get_service_apps)
+            * Sends a `get-apps` message to the runner to retrieve service apps.
+        * (start_and_monitor_model_service_health): If the restarted kernel’s
+            `session_type` is `INFERENCE`
+            * (AbstractKernel.start_model_service)
+                * Sends a `start-model-service` message to the runner to start the
+                    model service.
+            * (ModelServiceStatusEvent) is emitted:
+                * (_dispatch_model_serving_events)
+                * (handle_model_service_status_update)
+                * (update_appproxy_endpoint_routes): Reads the wsproxy address for the
+                    scaling group from the DB and sends a POST request to
+                    `f"{wsproxy_addr}/v2/endpoints/{endpoint.id}"` to update the
+                    endpoint address in the `endpoints` table.
+        * (KernelStartedEvent) is emitted:
+            * (mark_kernel_running): Updates the kernel’s status in the DB to
+                `KernelStatus.RUNNING`.
 
 ---
 
@@ -133,7 +270,80 @@ Status: Draft
 * **Response Value**:
     * The result of an `asyncio.Future` (typically `None` on success, or an exception if destruction fails).
 * **Side Effects**:
-    * Calls `self.agent.inject_container_lifecycle_event` with `LifecycleEvent.DESTROY`
+    **Agent Side**:
+        * (inject_container_lifecycle_event):
+            * (_handle_destroy_event):
+                * Acquires `registry_lock`; if the kernel is already terminated, calls
+                    `reconstruct_resource_usage` and emits `KernelTerminatedEvent`.
+                * Otherwise, calls `AbstractAgent.destroy_kernel` to terminate the kernel.
+                    * (aiodocker.containers.stop):
+                        * Stops the container by `container_id`.
+                    * If the kernel is already dead or a 404 error occurs, calls
+                        `reconstruct_resource_usage`.
+                    * (reconstruct_resource_usage):
+                        * (DockerAgent.enumerate_containers): Identifies containers to
+                            iterate over.
+                            * (aiodocker.containers.list): Lists containers.
+                            * (get_kernel_id_from_container): Extracts the kernel ID from
+                                the container name. If the container label
+                                `ai.backend.owner` equals `DockerAgent.id`, calls
+                                `aiodocker.containers.show` to fetch container info and
+                                includes it in the iteration set.
+                        * Invokes `restore_from_container` on each accelerator to reset
+                            `alloc_map`, then reloads `alloc_map` from `resource.txt`
+                            under `scratches`.
+                    * (AbstractCodeRunner.close()):
+                        * Cleans up resources such as sockets and tasks.
+            * Places a `ContainerLifecycleEvent` in `container_lifecycle_queue` and
+                processes it in `process_lifecycle_events`.
+            * (_handle_clean_event):
+                * Waits for the `destruction_task` in `_ongoing_destruction_tasks` to
+                    finish, then calls the kernel’s code-runner `close`.
+                * Calls `DockerAgent.clean_kernel` to clean up the kernel.
+                * Emits `AgentErrorEvent` if an exception occurs.
+                * Calls `AbstractKernel.close` (no-op in `DockerAgent`).
+                * If the terminated kernel’s `kernel_id` is in `restart_tracker`, sets
+                    the corresponding Event; otherwise emits `KernelTerminatedEvent`.
+                * Sets `.AbstractKernel.clean_event` and `ev.done_future` to signal that
+                    the kernel has been cleaned.
+            * (collect_logs):
+                * Writes collected container logs to
+                    `containerlog.{container_id}` in `redis_stream_pool`.
+            * If the kernel has a domain-socket proxy, calls `proxy_server.wait_close`.
+            * (aiodocker.containers.delete): Deletes the container.
+            * (_clean_scratch): Unmounts filesystems at the `scratch` and `tmp_dir`
+                paths, removes them with `rmtree`, deletes the `scratch_root` loop
+                filesystem, and—if a network plugin is configured—calls the plugin’s
+                `leave_network` to clean up networking.
+    **Manager side**:
+        * (handle_kernel_terminated): Invoked on receipt of `KernelTerminatedEvent`.
+        * (mark_kernel_terminated):
+            * (recalc_agent_resource_occupancy):
+                * Updates `redis_stat.keypair.concurrency_used.{access_key}`.
+                * Updates `redis_stat.keypair.sftp_concurrency_used.{access_key}`.
+            * (recalc_concurrency_used): Updates the kernel table.
+        * (session_lifecycle_mgr.register_status_updatable_session): PUSHes sessions
+            that need updating to the set `redis_obj.session_status_update`.
+        * Emits `DoUpdateSessionStatusEvent`.
+        * (SchedulerDispatcher.update_session_status): Handles
+            `DoUpdateSessionStatusEvent`.
+        * (update_session_status): Retrieves session-status update events from the set
+            `redis_obj.session_status_update` and updates session statuses.
+        * (transit_session_status): Updates the session status in the `sessions` table.
+        * (_post_status_transition): Emits `SessionTerminatedEvent`.
+        * (handle_session_terminated): Handles `SessionTerminatedEvent`.
+        * (AgentRegistry.clean_session):
+            * For `SINGLE_NODE`, calls `destroy_local_network`.
+            * For `MULTI_NODE`, calls the network plugin’s `destroy_network`.
+        * (invoke_session_callback): Called when a terminated session is an inference
+            session.
+            * Updates the `routings` table.
+            * (agent_registry.update_appproxy_endpoint_routes): Updates the `endpoints`
+                table by sending a POST request to
+                `{wsproxy_addr}/v2/endpoints/{endpoint.id}`.
+        * (_clear_error): If the removed session has a `callback_url`:
+            * (_make_session_callback): Sends a session-lifecycle event to
+                `{callback_url}` to notify that the session has terminated.
 
 ---
 
@@ -144,7 +354,13 @@ Status: Draft
 * **Response Value**:
     * `None`.
 * **Side Effects**:
-    * Calls `self.agent.interrupt_kernel()`, sending a interrup msg to kernel
+    * (DockerAgent.interrupt_kernel)
+    * (DockerKernel.interrupt_kernel)
+    * (AbstractCodeRunner.feed_interrupt):
+        * Sends an `interrupt` message to the runner.
+    * (BaseRunner.main_loop):
+        * When an `interrupt` message is received, calls `self._interrupt` to send a `SIGINT` signal to its subprocess.
+        * If the BaseRunner has a `kernel_mgr` attribute, calls `AsyncKernelManager.interrupt_kernel` (Jupyter client).
 
 ---
 
@@ -156,6 +372,16 @@ Status: Draft
     * `opts: dict`
 * **Response Value**:
     * JSON-parsed completion results containing suggested code completions
+* **Side Effects**:
+    * (AbstractCodeRunner.get_completions):
+    * (AbstractKernel.get_completions):
+    * (AbstractCodeRunner.feed_and_get_completion):
+        * Sends a `complete` message to the runner.
+    * (BaseRunner.main_loop):
+        * Upon receiving a `complete` message, calls `self._complete`.
+    * (BaseRunner.complete):
+        * Returns the strings to display in the auto-complete list. The current implementation appears to return an empty list.
+
 
 ---
 
@@ -165,6 +391,11 @@ Status: Draft
     * `kernel_id: str`
 * **Response Value**:
     * JSON-parsed result of kernel logs
+* **Side Effects**:
+    * (aiodocker.containers.get):
+        * Retrieves container information by `container_id`.
+    * (aiodocker.containers.log):
+        * Fetches and returns the container’s logs.
 
 ---
 
@@ -178,10 +409,148 @@ Status: Draft
 * **Response Value**:
     * `dict[str, Any]`: Information about the newly restarted kernel (similar to `create_kernels` response for a single kernel).
 * **Side Effects**:
-    * Destroying old kerenl with given kernel id. call `inject_container_lifecycle_event` with `LifecycleEvent.DESTROY`and reason `RESTARTING`
-        * If destroying event spent more than 60 seconds, `inject_container_lifecycle_event` called with `LifecycleEvent.CLEAN`and reason `RESTART_TIMEOUT` and Raise `asyncio.TimeoutError``
-    * Restart kernel using `create_kernel`
-
+    * (restart_kernel__load_config): Loads the previous kernel's `kconfig.dat` from the scratch directory.
+    * (restart_kernel__load_config): Loads the previous kernel's `cluster.json` from the scratch directory.
+    * (_handle_destroy_event)
+        * If the kernel_id is **not** registered in the kernel registry (already dead)
+            * (reconstruct_resource_usage): Loads the alloc_map from `resource.txt` in the scratch directory via `restore_from_container` for each accelerator in the agent.
+        * If it **is** registered
+            * (AbstractCodeRunner.close): Cleans up the previous kernel runner's resources (watchdog_task, status_task, read_task, input_sock, output_sock).
+        * (destroy_kernel):
+            * (aiodocker.containers.stop): Stops the previous kernel container.
+                * Calls reconstruct_resource_usage on exception.
+    * (_handle_clean_event)
+        * (aiodocker.containers.log): Collects the logs of the previous kernel container.
+        * (DockerAgent.collect_logs): Writes the collected container logs to `containerlog.{container_id}` in `redis_stream_pool`. The logs are set to expire after 1 hour.
+            * Publishes DoSyncKernelLogsEvent
+            * (handle_kernel_log): Manager receives `DoSyncKernelLogsEvent`, writes the logs to the `container_log` column of the DB `kernels` table, then deletes them from Redis.
+        * (aiodocker.containers.delete): Deletes the previous kernel container.
+        * (clean_kernel): If the kernel has `domain_socket_proxies`, calls `proxy_server.wait_close()` to clean up the domain-socket proxy.
+        * (_clean_scratch): Unmounts the filesystems at the scratch path and tmp_dir, removes them with rmtree, and then removes the scratch_root loop filesystem.
+        * If the kernel’s network driver is not `bridge`, calls the plugin’s `leave_network` to clean up the network.
+    * (DockerAgent.init_kernel_context):
+        * (DockerAgent.resolve_image_distro):
+            * If the image label `ai.backend.base-distro` is set, uses that value as the distro.
+            * Otherwise, if there is a `"image:{image_id}:distro"` cache in `redis_stat_pool`, loads it and uses the value as the distro.
+            * If no cache, creates a container with `aiodocker.containers.create` to run `ldd --version`, reads the distro from the container log, and caches it in `redis_stat_pool`.
+    * (DockerAgent.check_image): Uses `aiodocker.images.inspect` to decide whether the image needs pulling or is already present.
+    * (DockerAgent.pull_image): Pulls the image via `aiodocker.images.pull`.
+    * (DockerAgent.prepare_resource_spec): Loads the kernel resource spec from `resource.txt` under the `config_dir` path.
+    * (DockerAgent.prepare_scratch):
+        * If the host platform is `linux`
+            * When `scratch_type` is `memory`
+                * Creates a filesystem in the new kernel’s `scratch_dir` (spawns a subprocess to mount a tmpfs).
+                * Creates a filesystem in the new kernel’s `tmp_dir` (spawns a subprocess to mount a tmpfs).
+            * When `scratch_type` is `hostfile`, creates a loop file in the new kernel’s `scratch_root`.
+        * On non-Linux hosts, simply `mkdir` the `scratch_dir`.
+        * Creates `config_dir` and `work_dir` under `scratch_dir` with permission `0o755`.
+    * (_clone_dotfiles): Copies the following `pkg_resources` files under `ai/backend/runner`:
+        * `jupyter-custom.css`
+        * `logo.svg`
+        * `roboto.ttf`
+        * `roboto-italic.ttf`
+        * `.bashrc`
+        * `.bash_profile`
+        * `.zshrc`
+        * `.vimrc`
+        * `.tmux.conf`
+        * `.jupyter/custom`
+        * `.jupyter/custom/custom.css`
+        * `.jupyter/custom/logo.svg`
+        * `.jupyter/custom/roboto.ttf`
+        * `.jupyter/custom/roboto-italic.ttf`
+    * (_clone_dotfiles): If the agent process `euid` is 0, changes the copied files’ `uid` and `gid` to `kernel-uid` and `kernel-gid`.
+    * (DockerKernelCreationContext.prepare_ssh)
+        * Writes the provided SSH key to `config_dir/ssh/id_cluster`.
+        * Writes the provided SSH public key to `config_dir/ssh/id_cluster.pub`.
+        * If `uid-match` (`KernelFeatures.UID_MATCH`) is set, changes ownership of the written SSH files to `kernel-uid` and `kernel-gid`.
+        * If `cluster_info` has `cluster_ssh_port_mapping`, records it in `config_dir/ssh/port-mapping.json`.
+    * (DockerKernelCreationContext.mount_krunner)
+        * Bind-mounts `runner/su-exec.{arch}.bin` to `/opt/kernel/su-exec`
+        * Bind-mounts `runner/libbaihook.*.{arch}.so` to `/opt/kernel/libbaihook.so`
+        * Bind-mounts `runner/dropbearmulti.{arch}.bin` to `/opt/kernel/dropbearmulti`
+        * Bind-mounts `runner/sftp-server.{arch}.bin` to `/opt/kernel/sftp-server`
+        * Bind-mounts `runner/tmux.{arch}.bin` to `/opt/kernel/tmux`
+        * If `sandbox-type` is "jail", bind-mounts `runner/jail.*.{arch}.bin` to `/opt/kernel/jail`
+        * Bind-mounts `runner/extract_dotfiles.py` to `/opt/kernel/extract_dotfiles.py`
+        * Bind-mounts `runner/entrypoint.sh` to `/opt/kernel/entrypoint.sh`
+        * Bind-mounts `runner/fantompass.py` to `/opt/kernel/fantompass.py`
+        * Bind-mounts `runner/hash_phrase.py` to `/opt/kernel/hash_phrase.py`
+        * Bind-mounts `runner/words.json` to `/opt/kernel/words.json`
+        * Bind-mounts `runner/DO_NOT_STORE_PERSISTENT_FILES_HERE.md` to `/home/work/DO_NOT_STORE_PERSISTENT_FILES_HERE.md`
+        * If the target libc is `musl`, bind-mounts `runner/terminfo.alpine3.8` to `/home/work/.terminfo`
+        * Volume-mounts the directory set in `local_config.container.krunner_volume` to `/opt/backend.ai`
+        * Sets the `LD_PRELOAD` env var to `/opt/kernel/libbaihook.so` so it loads first.
+        * Bind-mounts the `ai/backend/kernel` package to `/opt/backend.ai/lib/python{pyver}/site-packages/ai/backend/kernel`
+        * Bind-mounts the `ai/backend/helpers` package to `/opt/backend.ai/lib/python{pyver}/site-packages/ai/backend/helpers`
+        * Calls `apply_accelerator_allocation` for each accelerator plugin,
+            * which receives the aiodocker object and generates Docker args for resource isolation via `generate_docker_args`.
+        * Calls each plugin’s `generate_accelerator_mounts`, adds the returned mounts to `resource_spec.mounts`.
+        * If an accelerator plugin requires extra hooks, bind-mounts `/opt/kernel/{hook}.so` and appends its path to `LD_PRELOAD`.
+    * (AbstractComputePlugin.get_attached_devices): Calls each plugin’s `get_attached_devices` to obtain device info to pass to the KernelCreationContext.
+    * (DockerAgent.load_model_definition): Executed only for inference models.
+        * Reads the image’s `CMD` via `aiodocker.images.get` (deprecated, should be replaced with `inspect`).
+        * Reads the model definition from `model_definition_yaml`.
+    * (restart_kernel__store_config): Serializes the new kernel config to `config/kconfig.dat` as pickle.
+    * (restart_kernel__store_config): Serializes the new cluster config to `config/cluster.json` as pickle.
+    * (DockerKernelCreationContext.prepare_container)
+        * Creates a user bootstrap script `/bootstrap.sh` under the work directory.
+            * If `KernelFeatures.UID_MATCH`, chowns it to kernel-uid/gid.
+        * Writes `environ.txt` under `config_dir` containing
+            * the provided `environ`
+            * the `self.computer_docker_args["Env"]` entry
+        * Writes `resource.txt` under `config_dir` containing
+            * `resource_spec.write_to_file` output
+            * key-value pairs from each accelerator’s `instance.generate_resource_data`
+        * If `internal_data.docker_credentials` exists, saves it to `config_dir/docker-creds.json`.
+        * Copies `environ.txt` to `environ_base.txt` and `resource.txt` to `resource_base.txt` in `config_dir`.
+        * If `internal_data.ssh_keypair` exists and `/home/work/.ssh` is not mounted
+            * Creates `.ssh` (0700) under the work dir and creates `authorized_keys`, `id_rsa`, `id_container` (0600).
+            * If `KernelFeatures.UID_MATCH`, chowns `.ssh` and its files to kernel-uid/gid.
+        * Processes each path in `internal_data.dotfiles`:
+            * Absolute paths → unchanged.
+            * Paths starting with `"/home/"` → into `scratch_dir`.
+            * Others → into the `work` directory.
+            * Writes each dotfile to the determined path and chmods with `dotfile["perm"]`.
+            * If `KernelFeatures.UID_MATCH`, chowns each dotfile and its parent dirs to kernel-uid/gid.
+    * (DockerKernelCreationContext.start_container)
+        * If `HostConfig.NetworkMode` is `host`
+            * Writes intrinsic port info (`replin`, `replout`, `sshd`, `ttyd`) to `config_dir/intrinsic-ports.json`.
+        * Additionally reads `agent-docker-container-opts.json` from the following paths and applies them as container options:
+            * `/etc/backend.ai`
+            * `.config/backend.ai`
+            * `~/.config/backend.ai`
+        * Creates the container via `aiodocker.containers.create`.
+        * Re-opens `config_dir/resource.txt`, records the `container_id`, and adds.extra resource info from plugins via `generate_resource_data`.
+        * Starts the container via `aiodocker.containers.start`.
+        * If `sudo_session_enabled`, executes `sh -c mkdir -p /etc/sudoers.d && echo "work ALL=(ALL:ALL) NOPASSWD:ALL" > /etc/sudoers.d/01-bai-work` via `aiodocker.containers.exec` to configure password-less sudo inside the container.
+        * Calls.each accelerator’s `get_docker_networks`, fetches DockerNetwork objects via `aiodocker.networks.get`, and connects them.
+        * Calls `container.port` to fetch the container’s port info.
+        * If the network plugin’s `network_config.mode` is not `bridge`, calls `get_capabilities` to fetch network capabilities.
+            * If the `GLOBAL` capability exists, the plugin’s `expose_ports` is called to expose the ports to the public network after the container starts.
+        * (DockerKernelCreationContext._apply_seccomp_profile): Applies the default seccomp profile from `runner/default-seccomp.json` and appends any additional syscalls to `SecurityOpt`.
+        * On exception in `_clean_scratch`, calls `_rollback_container_creation` to clean up `scratch` and accelerator resources.
+    * (AbstractKernel.init)
+        * (DockerKernel.create_code_runner): Creates an `AbstractCodeRunner` (`DockerCodeRunner`) object.
+    * (DockerKernel.check_status)
+        * Sends a `status` message to the runner to check kernel runner status.
+    * (KernelObjectType.get_service_apps)
+        * Sends a `get-apps` message to the runner to retrieve service apps.
+    * (DockerAgent.start_and_monitor_model_service_health): If the restarted kernel’s `session_type` is `INFERENCE`
+        * (AbstractKernel.start_model_service)
+            * Sends a `start-model-service` message to the runner to start the model service.
+        * (BaseRunner.start_model_service)
+            * (BaseRunner._start_service): Receives the model service start result via `model-service-result`.
+                * (ServiceParser.start_service): Executes the actions listed in `ServiceDefinition.prestart_actions`.
+                * (AbstractCodeRunner.read_output): Removes `"/opt/backend.ai/lib:"` from `LD_LIBRARY_PATH`.
+                * (asyncio.create_subprocess_exec): Starts the model service subprocess.
+                * (wait_local_port_open): Waits until the local port specified in `service_info.port` opens.
+        * Publishes ModelServiceStatusEvent
+            * (_dispatch_model_serving_events)
+            * (handle_model_service_status_update): Manager receives `ModelServiceStatusEvent`.
+            * (AgentRegistry.update_appproxy_endpoint_routes): Reads the wsproxy address of the scaling group for the endpoint from the DB and sends a.POST request to `f"{wsproxy_addr}/v2/endpoints/{endpoint.id}"` to update the endpoint address in the `endpoints` table.
+    * Publishes KernelStartedEvent
+        * (AgentRegistry.mark_kernel_running): Updates the kernel’s status in the DB to `KernelStatus.RUNNING`.
 ---
 
 ## `execute`
@@ -204,12 +573,23 @@ Status: Draft
         }
         ```
 * **Side Effects**:
-    * Produce `ExecutionStartedEvent(session_id)`
-    * Calls kernel with given kernel id `execute`.
-        * When kernel with kernel_id does not exists, `RuntimeError` raises
-        * When asyncio.CancelledError occurs, `ExecutionCancelledEvent` is produced
-    * If Kernel execution is "finished", `ExecutionFinishedEvent(session_id)` produced
-    * If Kernel execution is "exec-timeout", `ExecutionTimeoutEvent(session_id)` produced and `inject_container_lifecycle_event` is called with `LifecycleEvent.DESTROY` and `EXEC_TIMEOUT`
+    * (AbstractCodeRunner.execute):
+    * (AbstractKernel.execute):
+        * (AbstractCodeRunner.attach_output_queue):
+            * Generates a `run_id` (`secrets.token_hex(16)`) and adds it to `self.pending_queues`. Injects an `asyncio.Event` object into that queue.
+            * Waits until the injected Event object is set by `next_output_queue`.
+        * When mode is "batch", calls `feed_batch`.
+            * Sends `clean`, `build`, and `exec` messages in sequence.
+        * When mode is "query", calls `feed_code`.
+            * Sends a `code` message.
+        * When mode is "input", calls `feed_input`.
+            * Sends an `input` message.
+        * When mode is "continue", skips.
+    * (AbstractCodeRunner.get_next_result): Creates a `NextResult` object via `aggregate_console`.
+        * On normal completion (`RunFinished`): switches to the next queue (`next_output_queue`).
+        * In other cases—`BuildFinished`, `CleanFinished`, `TimeoutError`, etc.—moves the current queue to the tail, then resumes the output queue (`resume_output_queue`).
+    * (AbstractCodeRunner.close): Cleans internal CodeRunner resources such as sockets and tasks.
+
 ---
 
 ## `trigger_batch_execution`
@@ -226,9 +606,11 @@ Status: Draft
 * **Response Value**:
     * `dict[str, Any]`: Information about the started service (e.g., access points, status).
 * **Side Effects**:
-    * Calls `self.agent.start_service()`. This might involve:
-        * Executing commands inside the container to launch the service.
-        * Potentially exposing new ports or endpoints related to the service.
+    * (DockerAgent.start_service)
+    * (DockerKernel.start_service):
+    * (AbstractCodeRunner.feed_start_service)
+        * Sends a `start-service` message to the runner, and
+        * (read_output) receives the `service-result` via `service_queue`, returning the service’s name, port number, protocol, options, and so on as JSON.
 
 ---
 
