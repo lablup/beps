@@ -41,7 +41,7 @@ However, the current kernel creation flow has the following problems:
       * Interdependent operations are all managed in the context, making code changes difficult.
 2.  The resources required for kernel setup and their cleanup code aren't matched.
       * Container creation involves a function call at the time of creation, but cleanup code is called from an internal event loop.
-3.  The Agent uses **pickle** for kernel recovery, which makes it difficult to modify the new version due to compatibility issues with older pickle versions.
+3.  The Agent uses **pickle** for kernel recovery, which makes it difficult to modify the new version due to compatibility issues with older versions.
 4.  The Agent and Kernel structures are too monolithic, making it hard to understand their operations.
 5.  Resource dependencies required for kernel creation are intertwined, making them difficult to decipher.
 
@@ -155,7 +155,7 @@ class Stage(ABC, Generic[TSpec, TResource]):
         raise NotImplementedError
 ```
 
-We will implement a `Provisioner` for allocating resources and a `Stage` for managing resources. Dependencies for each resource will be injected as arguments, ensuring that state is not managed internally within the class as much as possible. This clarifies resource dependencies and allows for individual resource management.
+We will implement a `Provisioner` for allocating resources and a `Stage` for managing resources. Dependencies for each resource will be injected as arguments,  minimizing internal state management within each class. This clarifies resource dependencies and allows for individual resource management.
 
 A `Stage` will use a `Provisioner` to allocate resources and wait until the resources are ready. We can collect metrics on the preparation time and dangling status for each resource, and common processing can be handled within the `Stage`.
 
