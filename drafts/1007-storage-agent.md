@@ -154,6 +154,7 @@ flowchart LR
 ## References
 
 - Original issue: lablup/backend.ai#2791 (BA-86)
+- lablup/backend.ai#1809
 - lablup/backend.ai#2746
 - lablup/backend.ai#1679
 
