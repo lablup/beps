@@ -1,7 +1,7 @@
 ---
 Author: Joongi Kim (joongi@lablup.com)
 Status: Draft
-Created: 2025-06-24
+Created: 2024-08-30
 ---
 
 # Storage Agent
