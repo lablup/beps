@@ -28,7 +28,7 @@ As model serving usage has been growing, Backend.AI introduced the “Model Serv
 ### TO-BE
 
 1. Introduce a Rolling Update Strategy:
-- When a user triggers a promotion or update, Backend.AI attempts to create new model service sessions (pods/containers) incrementally.
+- When a user triggers a promotion or update, Backend.AI attempts to create new model service sessions incrementally.
 - If there are insufficient resources (e.g., “replicas × resource-required” is more than what is available), the update request is immediately rejected.
 - New instances are started and tested for health. As soon as a new instance is deemed healthy, a proportion of traffic is shifted to it. This continues until all instances are running the new version.
 - If any instance fails during rollout, the system can automatically or manually roll back to the last stable version.
@@ -63,9 +63,9 @@ As model serving usage has been growing, Backend.AI introduced the “Model Serv
 #### Blue-Green Update
 
 1. User triggers a model service update (API/UI/CLI).
-2. Service transitions to UPDATING state.
+2. Service transitions to `UPDATING` state.
 3. The system creates the new set of routing objects (“Green”) with `traffic_ratio=0.01.
-4. As soon as all Green routes are HEALTHY, further validations (e.g., canary requests, manual checks) can be conducted.
+4. As soon as all Green routes are `HEALTHY`, further validations (e.g., canary requests, manual checks) can be conducted.
   - Optionally, the user can press a “Confirm Deploy” button once they verify correct behavior.
 5. Update the Green routing `traffic_ratio` to 1.0, reduce Blue to 0.0.
 6. Optionally keep Blue routing briefly for quick rollback, or remove it and free resources.
