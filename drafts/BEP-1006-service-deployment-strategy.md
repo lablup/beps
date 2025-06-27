@@ -8,59 +8,84 @@ Created: 2025-06-27
 
 ## Abstract
 
-This proposal aims to enhance the Backend.AI Model Service deployment process with a rolling update strategy. Rolling updates allow incremental deployment of a new version while some instances of the service remain running, resulting in minimal downtime. The improved strategy also supports dynamic environment variable updates, rollback mechanisms, and versioning for better release management and reliability.
+This proposal aims to enhance the Backend.AI Model Service deployment process by providing more sophisticated, zero- or near-zero-downtime strategies. Specifically, it outlines how to implement rolling updates and optional blue-green deployments to ensure minimal service interruption. In addition, it proposes a way to dynamically update environment variables and to rollback when needed.
 
 ## Motivation
-As model-serving usage has grown, Backend.AI introduced the “Model Service” in version 23.09 and Backend.AI FastTrack introduced the “Model Serving Task” in 25.09 to meet the demand for operational AI services. However, the existing deployment approach does not fully support zero-downtime or seamless updates, which are critical for production environments. To address this, we propose a rolling update mechanism that incrementally replaces older instances with new ones while keeping the service active.
+
+As model serving usage has been growing, Backend.AI introduced the “Model Service” in version 23.09 and Backend.AI FastTrack introduced the “Model Serving Task” in 25.09 to meet evolving market needs. However, the current deployment process does not fully support strategies for zero-downtime deployment—an important requirement for end user-facing services. To address this limitation, we propose:
+• A rolling update mechanism that updates services incrementally while keeping a subset of instances operational.
+• A blue-green deployment flow suitable for use cases requiring isolated testing or strict regulatory requirements.
+• A rollback capability that preserves service continuity in case of errors in the new version.
 
 ## Design
 
 ### AS-IS
 
-1. Current deployment methods are relatively basic, causing noticeable interruptions during upgrades.
-2. Environment variables (envs) are fixed at deployment time and cannot be dynamically updated without a full redeployment.
-3. Lack of versioned routing objects (e.g., no dedicated “version” field) makes it more challenging to roll back to a stable release if issues arise.
+- Deployments only support simple replacement or upgrades, causing short service interruptions.
+- Environment variables are fixed at deployment time and cannot be dynamically updated.
+- The system lacks fine-grained versioning (e.g., a dedicated “version” field in the `Routing` object) for easier rollback or co-existence of multiple versions.
 
 ### TO-BE
 
-1. Rolling Update Strategy:
-- Users trigger an update or “promotion” when a new version needs to be deployed.
-- If there are insufficient resources (e.g., if “replicas × resource-required” exceeds availability), the request is rejected to avoid partial or unstable deployments.
-- The system incrementally spins up new instances. As each new instance becomes healthy, some traffic is directed to it.
-- The process continues until all old instances have been replaced or until a failure triggers a rollback to the last stable version.
+1. Introduce a Rolling Update Strategy:
+- When a user triggers a promotion or update, Backend.AI attempts to create new model service sessions (pods/containers) incrementally.
+- If there are insufficient resources (e.g., “replicas × resource-required” is more than what is available), the update request is immediately rejected.
+- New instances are started and tested for health. As soon as a new instance is deemed healthy, a proportion of traffic is shifted to it. This continues until all instances are running the new version.
+- If any instance fails during rollout, the system can automatically or manually roll back to the last stable version.
 
-2. Dynamic Environment Variables:
-- Allow changes to environment variables during a rolling update so that a full redeployment is not needed for routine configuration updates.
-- For best results, the system gracefully reloads or restarts only the affected instances, trickling traffic to new pods as they become ready.
+2. Introduce a Blue-Green Deployment Mode:
+- A user initiates a deployment update via API (UI and CLI support planned).
+- The existing active deployment is referred to as “Blue.” The new one is “Green.”
+- The system creates new “Green” routings—each with an initial traffic ratio of 0.0—equal to the desired replica count.
+- Once the new “Green” routings are all healthy (or have passed custom validation checks), the system updates `traffic_ratio` to 1.0 for Green and to 0.0 for the old Blue.
+- Blue routings are retained temporarily for rollback purposes or removed entirely if deemed stable.
+- The Model Service returns to a `HEALTHY` (or “active”) status.
 
-3. Enhanced Versioning:
-- Introduce a version field to Routing to simplify release management and rollbacks.
-- Store metadata about previous versions, enabling one-click or automated rollbacks.
+3. Enable Updating of Environment Variables:
+- Allow environment variables (envs) to be modified during rolling or blue-green updates, removing the need for redeployment solely for env changes.
+- Provide graceful handling of env changes so that sessions have time to reload configurations and verify correctness.
+
+4. Enhance Versioning:
+- Each `Routing` gains a new field: `version`.
+- The system can track which version is currently in production (and previous stable ones), making rollbacks simpler.
 
 ### Detailed Flow for Rolling Updates
 
-1. User triggers a promotion or update request for the Model Service.
-2. The system begins creating new model service instances (e.g., pods or containers).
-3. If resources are insufficient, the update is rejected with an error message.
-4. Once each new instance is healthy, a fraction of traffic is allocated to it.
-5. The system progressively scales traffic from older instances to newer ones.
-6. If an error is detected (e.g., failing health checks, excessive errors in logs), the rollout is paused or rolled back.
-7. On successful completion, all traffic is routed to the new version, and the old instances are retired.
+#### Rolling Update
+
+1. User triggers or submits a promotion.
+2. If insufficient resources exist to accommodate additional replicas, the request is rejected.
+3. The system launches a new instance (linked to the updated version).
+4. Once the instance is healthy, routing adjusts to direct a small percentage of traffic to it.
+5. Gradually scale up traffic to the new version.
+6. After all instances are updated and validated, the previous version can be terminated or kept temporarily for rollback.
+
+#### Blue-Green Update
+
+1. User triggers a model service update (API/UI/CLI).
+2. Service transitions to UPDATING state.
+3. The system creates the new set of routing objects (“Green”) with `traffic_ratio=0.01.
+4. As soon as all Green routes are HEALTHY, further validations (e.g., canary requests, manual checks) can be conducted.
+  - Optionally, the user can press a “Confirm Deploy” button once they verify correct behavior.
+5. Update the Green routing `traffic_ratio` to 1.0, reduce Blue to 0.0.
+6. Optionally keep Blue routing briefly for quick rollback, or remove it and free resources.
+7. Model Service returns to `HEALTHY` state.
 
 ### Rollback Considerations
 
-- The system retains references to the previous stable version and associated environment variables.
-- An automated or manual rollback can be initiated at any stage if a new version is found to be defective.
-- Rollbacks reuse the stored version metadata, ensuring minimal downtime during revert operations.
+- The system should store (or tag) previous versions and their environment variables.
+- Rollback can be triggered automatically upon critical failure or manually if errors are detected.
+- Upon rollback, the system reverts `traffic_ratio` and resources to the last known good deployment.
 
-### Canary (Future Possibility)
+### Canary Support (Future Extension)
 
-- As a future extension, canary releases could test a new version with a small subset of traffic before promoting it to full production.
-- This approach would require additional monitoring and alerting to detect anomalies promptly.
+- Introduce a subset of new routes (e.g., 5-10% traffic) to test the new version in production-like conditions.
+- If error rates exceed a defined threshold, the canary is rolled back before full deployment.
+- This feature would require additional monitoring and alerting capabilities to be fully effective.
 
 ## Conclusion
 
-Introducing rolling updates significantly improves the robustness and reliability of Backend.AI Model Service deployments. The enhancements described—incremental instance replacement, dynamic environment variables, and version-based rollbacks—will result in near-zero downtime during new releases and simpler, safer deployment management.
+Introducing rolling updates and blue-green deployments will help achieve near-zero downtime, minimize risk during releases, and allow for dynamic configuration changes. These enhancements will significantly improve the deployment experience for both customers and end users of the Backend.AI Model Service.
 
 ### References
 
