@@ -8,7 +8,7 @@ Created: 2025-06-27
 
 ## Abstract
 
-This proposal aims to enhance the Backend.AI Model Service deployment process by providing more sophisticated, zero- or near-zero-downtime strategies. Specifically, it outlines how to implement rolling updates and optional blue-green deployments to ensure minimal service interruption. In addition, it proposes a way to dynamically update environment variables and to rollback when needed.
+This proposal aims to enhance the Backend.AI Model Service deployment process by providing more sophisticated, zero- or near-zero-downtime strategies. Specifically, it outlines how to implement rolling updates and blue-green deployments to ensure minimal service interruption. In addition, it proposes a way to dynamically update environment variables and to rollback when needed.
 
 ## Motivation
 
