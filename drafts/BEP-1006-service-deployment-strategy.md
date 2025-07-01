@@ -53,6 +53,27 @@ As model serving usage has been growing, Backend.AI introduced the “Model Serv
 
 Below is a unified architectural approach that supports both rolling updates and blue-green deployments. While the steps share a common foundation, they differ mainly in how traffic is shifted between the old and new versions.
 
+```mermaid
+flowchart TD
+
+  subgraph Rolling Update
+    A[Set small traffic_ratio for new version]
+    B[Wait for new instance to become HEALTHY]
+    C[Gradually increase traffic_ratio for new version]
+    D[Reduce traffic_ratio for old version]
+    E[Repeat until new version traffic_ratio=1.0 and all HEALTHY]
+    A --> B --> C --> D --> E
+  end
+
+  subgraph Blue-Green Update
+    F[Create Green with minimal traffic_ratio]
+    G[Green becomes HEALTHY]
+    H[Set Green traffic_ratio=1.0, Blue=0.0]
+    I[Green stays HEALTHY at 100% traffic_ratio]
+    F --> G --> H --> I
+  end
+```
+
 #### Common Process Overview
 1. User triggers or submits a promotion (API/UI/CLI) to deploy a new version of the Model Service.
 2. The system checks resource availability (e.g., replicas × required resources). If insufficient, the deployment request is rejected.
