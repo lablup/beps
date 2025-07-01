@@ -29,9 +29,9 @@ As model serving usage has been growing, Backend.AI introduced the “Model Serv
 
 1. Introduce a Rolling Update Strategy:
 - When a user triggers a promotion or update, Backend.AI attempts to create new model service sessions incrementally.
-- If there are insufficient resources (e.g., “replicas × resource-required” is more than what is available), the update request is immediately rejected.
-- New instances are started and tested for health. As soon as a new instance is deemed healthy, a proportion of traffic is shifted to it. This continues until all instances are running the new version.
-- If any instance fails during rollout, the system can automatically or manually roll back to the last stable version.
+- New instances are launched and must pass health checks before receiving a portion of traffic. Once a new instance is deemed healthy, traffic is gradually shifted. This continues until all instances run the new version without causing significant service downtime.
+- In the event of a failure during rollout, rollback can occur automatically or manually. However, automatic rollback applies only to the newly deployed version, and specific rules (e.g., timeout, error rate thresholds, resource constraints) govern exactly when it triggers. This helps ensure issues are contained early, while giving users control over rollback policies.
+- Manual rollback is always possible through versioned deployments, allowing users to revert to a previous stable version with minimal disruption.
 
 2. Introduce a Blue-Green Deployment Mode:
 - A user initiates a deployment update via API (UI and CLI support planned).
