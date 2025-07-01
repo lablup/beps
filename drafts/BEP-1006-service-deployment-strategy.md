@@ -49,33 +49,34 @@ As model serving usage has been growing, Backend.AI introduced the “Model Serv
 - Each `Routing` gains a new field: `version`.
 - The system can track which version is currently in production (and previous stable ones), making rollbacks simpler.
 
-### Detailed Flow for Rolling Updates
+### Detailed Flow for Deployment Strategies
+
+Below is a unified architectural approach that supports both rolling updates and blue-green deployments. While the steps share a common foundation, they differ mainly in how traffic is shifted between the old and new versions.
+
+#### Common Process Overview
+1. User triggers or submits a promotion (API/UI/CLI) to deploy a new version of the Model Service.
+2. The system checks resource availability (e.g., replicas × required resources). If insufficient, the deployment request is rejected.
+3. New routing objects (pointing to the updated version) are created with an initial traffic ratio.
+4. The system monitors each new instance’s health. Once the health checks pass (or other validations are satisfied), traffic is gradually or fully diverted according to the chosen strategy (rolling or blue-green).
+5. If at any point validation fails, the process may pause or roll back to a stable version.
+6. Upon successful completion, the new version handles all (or the majority) of traffic, and the old version is either terminated or retained briefly for rollback.
 
 #### Rolling Update
-
-1. User triggers or submits a promotion.
-2. If insufficient resources exist to accommodate additional replicas, the request is rejected.
-3. The system launches a new instance (linked to the updated version).
-4. Once the instance is healthy, routing adjusts to direct a small percentage of traffic to it.
-5. Gradually scale up traffic to the new version.
-6. After all instances are updated and validated, the previous version can be terminated or kept temporarily for rollback.
+1. Set a small initial `traffic_ratio` on the new version.
+2. Wait for each new instance to become 'HEALTHY'.
+3. Gradually increase the `traffic_ratio` for the new version while reducing it for the old one.
+4. Continue until the new version’s `traffic_ratio` reaches 1.0 and all instances are 'HEALTHY'.
 
 #### Blue-Green Update
-
-1. User triggers a model service update (API/UI/CLI).
-2. Service transitions to `UPDATING` state.
-3. The system creates the new set of routing objects (“Green”) with `traffic_ratio=0.01.
-4. As soon as all Green routes are `HEALTHY`, further validations (e.g., canary requests, manual checks) can be conducted.
-  - Optionally, the user can press a “Confirm Deploy” button once they verify correct behavior.
-5. Update the Green routing `traffic_ratio` to 1.0, reduce Blue to 0.0.
-6. Optionally keep Blue routing briefly for quick rollback, or remove it and free resources.
-7. Model Service returns to `HEALTHY` state.
+1. Create a new version (Green) with a minimal `traffic_ratio` (e.g., 0.0 or very low).
+2. Once Green is 'HEALTHY', adjust `traffic_ratio` to route traffic fully to Green.
+3. Simultaneously reduce the old (Blue) version’s `traffic_ratio` to 0.0.
+4. When Green remains 'HEALTHY' at 100% `traffic_ratio`, the update is complete.
 
 ### Rollback Considerations
 
-- The system should store (or tag) previous versions and their environment variables.
-- Rollback can be triggered automatically upon critical failure or manually if errors are detected.
-- Upon rollback, the system reverts `traffic_ratio` and resources to the last known good deployment.
+- Both rolling and blue-green strategies can revert to a prior stable version if errors arise.
+- Retaining the old version (with its associated environment variables and configuration) until final confirmation ensures a seamless fallback option.
 
 ### Canary Support (Future Extension)
 
@@ -91,3 +92,5 @@ Introducing rolling updates and blue-green deployments will help achieve near-ze
 
 - Kubernetes - Performing a Rolling Update: https://kubernetes.io/docs/tutorials/kubernetes-basics/update/update-intro/
 > Rolling updates allow Deployments to take place with zero downtime by incrementally updating Pods instances with new ones.
+
+- Kubernetes - ReplicaSet: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
