@@ -23,41 +23,57 @@ To address these issues, Backend.AI aims to introduce a Role-Based Access Contro
 ```mermaid
 graph TD
     A[User] --> B[Role]
-    B -- "Permissions for operation on entity type" --> C[Role Permissions]
-    B -- "Permissions for one specific entity" --> D[Resource Permissions]
+    B --> C[Role Permissions]
+    B --> D[Resource Permissions]
+    C --> E[Regular Operations: create, read, update, delete]
+    C --> F[Grant Operations: grant:create, grant:read, grant:update, grant:delete]
+    D --> G[Regular Operations: read, update, delete, execute]
+    D --> H[Grant Operations: grant:read, grant:update, grant:delete, grant:execute]
 ```
 
 Users can have one or more Roles, and each Role has multiple Permissions. Previously, each permission was assigned and managed directly to users, but this made the relationship between users and permissions complex and difficult to manage. Therefore, Roles were introduced to group permissions, and users are granted permissions through Roles. This structure improves consistency in permission management and simplifies the relationship between users and permissions.
 
-Permissions are divided into 4 main types:
+Permissions are divided into 2 main types:
 1. **Role Permissions**: Defines permissions for operations on a specific Entity Type.
 2. **Resource Permissions**: Defines permissions for operations on a specific Entity.
-3. **Grantable Role Permissions**: Defines permissions to grant specific Role Permissions to another user's Role. For example, the permission to grant 'create', 'read', 'update', 'delete' permissions for the 'session' Entity Type to another Role. A Role with this permission can grant Role Permissions to other Roles.
-4. **Grantable Resource Permissions**: Defines permissions to grant specific Resource Permissions to another user's Role. For example, the permission to grant 'read', 'update' permissions for a specific 'session' Entity to another Role. A Role with this permission can grant Resource Permissions to other Roles.
+
+Each permission type includes both regular operations and grant operations. Grant operations (prefixed with "grant:") allow a role to grant the corresponding regular operation to other roles.
 
 #### Role Permissions
 
-Role Permissions define permissions for operations on a specific Entity Type. For example, operations such as 'create', 'read', 'update', 'delete' can be defined for the 'session' Entity Type. A Role granted this permission can perform operations on all Entities of the Entity Type accessible within a specific scope.
+Role Permissions define permissions for operations on a specific Entity Type. Operations include:
+- **Regular operations**: 'create', 'read', 'update', 'delete', etc.
+- **Grant operations**: 'grant:create', 'grant:read', 'grant:update', 'grant:delete', etc.
 
-This is a permission type for batch permission management. When roles such as an Admin solely for Session management or an Admin solely for managing Resource groups are needed within a team, the desired scope and Entity Type permissions can be defined as Role Permissions.
+A Role with regular permissions can perform operations on all Entities of the Entity Type accessible within a specific scope. A Role with grant permissions can grant the corresponding regular permissions to other Roles within the same or narrower scope.
+
+For example:
+- A role with 'read' permission for 'session' entity type can read all sessions within their scope
+- A role with 'grant:read' permission for 'session' entity type can grant 'read' permission to other roles
 
 #### Resource Permissions
 
-Resource Permissions define permissions for operations on a specific Entity. For example, operations such as 'read', 'update', 'delete' can be defined for a specific 'session' Entity. A Role granted this permission can perform operations only on that Entity. Unlike Role Permissions, Resource Permissions define permissions for specific Entities. Therefore, Resource Permissions enable more granular permission management than Role Permissions.
+Resource Permissions define permissions for operations on a specific Entity. Operations include:
+- **Regular operations**: 'read', 'update', 'delete', 'execute', etc.
+- **Grant operations**: 'grant:read', 'grant:update', 'grant:delete', 'grant:execute', etc.
 
-This is a permission type for managing permissions by specific Entity, allowing granular permission management such as granting only 'read' permission for a specific Session, or granting 'read' and 'update' permissions for a specific VFolder to enable collaboration with other users.
+A Role with regular permissions can perform operations only on that specific Entity. A Role with grant permissions can grant the corresponding regular permissions for that specific Entity to other Roles.
 
-#### Grantable Role Permissions
+This enables granular permission management such as granting only 'read' permission for a specific Session, or granting 'read' and 'update' permissions for a specific VFolder to enable collaboration with other users.
 
-Grantable Role Permissions define permissions to grant specific Role Permissions to another user's Role. A Role with this permission can grant Role Permissions to other Roles. For example, it's the permission to grant 'create', 'read', 'update', 'delete' permissions for the 'session' Entity Type to another Role. This permission enables delegation of permissions between Roles.
+### Grant Permission Rules
 
-Permissions for granting Role Permission are managed separately from Role Permissions because the required permissions almost correspond one-to-one with Role Permissions. However, if permissions for granting Grantable Role Permissions were to be separated, it would require recursively additional tables, so permissions for granting Grantable Role Permissions are managed by granting 'grant' permission within Grantable Role Permissions. For example, the permission to grant permissions for the 'session' Entity Type to another Role is managed by granting 'grant' permission within the 'grantable_session_permissions' table. This structure clarifies permission delegation and simplifies the relationship between Roles. The 'grant' permission does not grant granular permissions by operations such as 'read', 'update', 'delete', but only grants the permission to grant Role Permissions for a specific Entity Type.
+1. **Scope Hierarchy**: Permissions can only be granted within the same or narrower scope
+   - Global scope can grant to: global, domain, project, or user scope
+   - Domain scope can grant to: domain, project, or user scope (within same domain)
+   - Project scope can grant to: project or user scope (within same project)
+   - User scope can grant to: user scope only
 
-#### Grantable Resource Permissions
+2. **Grant Authority**: Having 'grant:X' permission allows granting 'X' permission, regardless of whether the granter has 'X' permission themselves
 
-Grantable Resource Permissions define permissions to grant specific Resource Permissions to another user's Role. A Role with this permission can grant Resource Permissions to other Roles. For example, it's the permission to grant 'read', 'update' permissions for a specific 'session' Entity to another Role. This permission enables the granting of permissions for specific Resources.
+3. **Revoke Authority**: Having 'grant:X' permission includes the ability to revoke 'X' permission that they granted
 
-Like Grantable Role Permissions, Grantable Resource Permissions are also managed in a form where a user granted with 'grant' permission can grant the above permissions. For example, the permission to grant 'read', 'update' permissions for a specific 'session' Entity to another Role is managed by granting 'grant' permission within the 'grantable_session_resource_permissions' table.
+4. **No Grant Delegation**: There is no 'grant:grant' permission to prevent complex delegation chains
 
 ### Flow
 
@@ -74,10 +90,12 @@ Like Grantable Role Permissions, Grantable Resource Permissions are also managed
 
 1. A user requests a Grant operation by calling a specific REST API or GraphQL.
 2. The Action Processor verifies whether the Grant request can be performed.
-3. It checks whether the requested permission can be granted.
-   1. If granting Role Permissions, it checks if the corresponding Grantable Role Permissions exist.
-   2. If granting Resource Permissions, it checks if both Grantable Role Permissions and Grantable Resource Permissions exist.
-4. If permissions exist, the Permission is granted; otherwise, an appropriate error message is returned.
+3. It checks whether the requested permission can be granted:
+   1. Verify the granter has the corresponding grant permission (e.g., 'grant:read' to grant 'read')
+   2. Verify the scope hierarchy rule is followed
+   3. For resource permissions, verify the granter has access to the specific resource
+4. If all checks pass, the Permission is granted; otherwise, an appropriate error message is returned.
+5. The grant action is recorded with granted_by and granted_at information for audit purposes.
 
 ### Database Schema
 
@@ -121,8 +139,8 @@ CREATE TABLE role_permissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     entity_type VARCHAR(32) NOT NULL, -- 'session', 'vfolder', 'image', etc.
-    operation VARCHAR(32) NOT NULL,   -- 'create', 'read', 'update', 'delete', etc.
-    scope_type VARCHAR(32),           -- 'system', 'domain', 'project', 'user'
+    operation VARCHAR(32) NOT NULL,   -- 'create', 'read', 'update', 'delete', 'grant:create', 'grant:read', etc.
+    scope_type VARCHAR(32),           -- 'global', 'domain', 'project', 'user'
     scope_id VARCHAR(64),             -- Specific scope identifier
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     granted_by UUID REFERENCES users(uuid),
@@ -132,7 +150,7 @@ CREATE TABLE role_permissions (
 );
 ```
 
-The role_permissions table defines Operations that a Role can perform on specific Entity Types. This table grants permissions for entity_type and operation to a specific Role. For example, operations such as 'create', 'read', 'update', 'delete' can be defined for the 'session' Entity Type. A Role with this permission can perform operations on all Entities of the Entity Type within a defined scope.
+The role_permissions table defines Operations that a Role can perform on specific Entity Types. This table grants permissions for entity_type and operation to a specific Role. Operations include both regular operations ('create', 'read', 'update', 'delete') and grant operations ('grant:create', 'grant:read', 'grant:update', 'grant:delete'). A Role with regular permissions can perform operations on all Entities of the Entity Type within a defined scope. A Role with grant permissions can grant the corresponding regular permissions to other Roles.
 
 ##### 4. resource_permissions table (Resource Permissions)
 ```sql
@@ -141,7 +159,7 @@ CREATE TABLE resource_permissions (
     role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     entity_type VARCHAR(32) NOT NULL, -- 'session', 'vfolder', 'image', etc.
     entity_id UUID NOT NULL,          -- Specific entity ID
-    operation VARCHAR(32) NOT NULL,   -- 'read', 'update', 'delete', 'execute', etc.
+    operation VARCHAR(32) NOT NULL,   -- 'read', 'update', 'delete', 'execute', 'grant:read', 'grant:update', etc.
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     granted_by UUID REFERENCES users(uuid),
     granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -150,44 +168,7 @@ CREATE TABLE resource_permissions (
 );
 ```
 
-The resource_permissions table defines Operations that a Role can perform on specific Entities. This table grants permissions for entity_type and entity_id to a specific Role. For example, operations such as 'read', 'update', 'delete' can be defined for a specific 'session' Entity. A Role with this permission can perform operations only on that Entity.
-
-##### 5. grantable_role_permissions table (Grantable Role Permissions)
-```sql
-CREATE TABLE grantable_role_permissions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-    entity_type VARCHAR(32) NOT NULL,
-    operation VARCHAR(32) NOT NULL, -- 'create', 'read', 'update', 'delete', 'grant', etc.
-    scope_type VARCHAR(32),
-    scope_id VARCHAR(64),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    granted_by UUID REFERENCES users(uuid),
-    granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    expires_at TIMESTAMP WITH TIME ZONE,
-    UNIQUE(role_id, entity_type, operation, scope_type, scope_id)
-);
-```
-
-The grantable_role_permissions table defines permissions to grant specific Role Permissions to another Role. This table defines permissions to grant permissions for entity_type and operation to a specific Role. For example, it's the permission to grant 'create', 'read', 'update', 'delete' permissions for the 'session' Entity Type to another Role. A Role with this permission can grant Role Permissions to other Roles.
-
-##### 6. grantable_resource_permissions table (Grantable Resource Permissions)
-```sql
-CREATE TABLE grantable_resource_permissions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-    entity_type VARCHAR(32) NOT NULL,
-    entity_id UUID NOT NULL,
-    operation VARCHAR(32) NOT NULL, -- 'create', 'read', 'update', 'delete', 'grant', etc.
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    granted_by UUID REFERENCES users(uuid),
-    granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    expires_at TIMESTAMP WITH TIME ZONE,
-    UNIQUE(role_id, entity_type, entity_id, operation)
-);
-```
-
-The grantable_resource_permissions table defines permissions to grant specific Resource Permissions to another Role. This table defines permissions to grant permissions for entity_type and entity_id to a specific Role. For example, it's the permission to grant 'read', 'update' permissions for a specific 'session' Entity to another Role. A Role with this permission can grant Resource Permissions to other Roles.
+The resource_permissions table defines Operations that a Role can perform on specific Entities. This table grants permissions for entity_type and entity_id to a specific Role. Operations include both regular operations ('read', 'update', 'delete', 'execute') and grant operations ('grant:read', 'grant:update', 'grant:delete', 'grant:execute'). A Role with regular permissions can perform operations only on that Entity. A Role with grant permissions can grant the corresponding regular permissions for that specific Entity to other Roles.
 
 #### Migration from Existing Tables (Example: VFolder Invitation)
 
@@ -207,6 +188,18 @@ Currently, Backend.AI has the VFolder Invitation feature, which operates by gran
    - Remove the permission verification logic from the existing VFolder Invitation feature.
    - Instead, use the permission verification logic of the new RBAC system to check permissions in the Service Layer of VFolder.
 
+## Predefined Roles
+
+The system includes five predefined roles with the following general permissions:
+
+1. **super-admin**: Global administrator with full permissions across the entire system
+2. **admin**: Domain-level administrator with full permissions within their domain
+3. **project-admin**: Project-level administrator with full permissions within their project
+4. **monitor**: Read-only access for monitoring purposes
+5. **user**: Basic user with limited permissions for their own resources
+
+Detailed permission sets for each role will be defined in the implementation specification.
+
 ## Conclusion
 
-The RBAC system of Backend.AI enables granular permission management for users and projects, providing flexible access control suitable for various use cases. This system manages permissions based on Roles and allows granular permission settings through Role Permissions and Resource Permissions. Permission delegation between Roles is possible through Grantable Role Permissions and Grantable Resource Permissions, thereby enhancing management efficiency. The RBAC system ensures consistent permission verification for all requests, enhancing security and management efficiency.
+The RBAC system of Backend.AI enables granular permission management for users and projects, providing flexible access control suitable for various use cases. This system manages permissions based on Roles and allows granular permission settings through Role Permissions and Resource Permissions. By integrating grant operations into the permission system, controlled permission delegation is possible while maintaining simplicity and security. The RBAC system ensures consistent permission verification for all requests, enhancing security and management efficiency.
