@@ -95,7 +95,6 @@ This enables granular permission management such as granting only 'read' permiss
    2. Verify the scope hierarchy rule is followed
    3. For resource permissions, verify the granter has access to the specific resource
 4. If all checks pass, the Permission is granted; otherwise, an appropriate error message is returned.
-5. The grant action is recorded with granted_by and granted_at information for audit purposes.
 
 ### Database Schema
 
@@ -127,11 +126,12 @@ CREATE TABLE user_roles (
     role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     granted_by UUID REFERENCES users(uuid),
     granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(user_id, role_id)
 );
 ```
 
-The user_roles table defines the relationship between each user and Role. Users can have multiple Roles, and each Role receives permissions through associations with specific permissions tables. Users granted permissions can record who granted the permission through the `granted_by` field.
+The user_roles table defines the relationship between each user and Role. Users can have multiple Roles, and each Role receives permissions through associations with specific permissions tables. Users granted permissions can record who granted the permission through the `granted_by` field. The `expires_at` field allows for temporary role assignments that automatically expire at a specified time.
 
 ##### 3. role_permissions table (Role Permissions)
 ```sql
@@ -143,14 +143,11 @@ CREATE TABLE role_permissions (
     scope_type VARCHAR(32),           -- 'global', 'domain', 'project', 'user'
     scope_id VARCHAR(64),             -- Specific scope identifier
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    granted_by UUID REFERENCES users(uuid),
-    granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    expires_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(role_id, entity_type, operation, scope_type, scope_id)
 );
 ```
 
-The role_permissions table defines Operations that a Role can perform on specific Entity Types. This table grants permissions for entity_type and operation to a specific Role. Operations include both regular operations ('create', 'read', 'update', 'delete') and grant operations ('grant:create', 'grant:read', 'grant:update', 'grant:delete'). A Role with regular permissions can perform operations on all Entities of the Entity Type within a defined scope. A Role with grant permissions can grant the corresponding regular permissions to other Roles.
+The role_permissions table defines Operations that a Role can perform on specific Entity Types. This table grants permissions for entity_type and operation to a specific Role. A Role with the regular permissions and the grant permissions can perform operations on all Entities of the Entity Type within a defined scope.
 
 ##### 4. resource_permissions table (Resource Permissions)
 ```sql
@@ -161,14 +158,11 @@ CREATE TABLE resource_permissions (
     entity_id UUID NOT NULL,          -- Specific entity ID
     operation VARCHAR(32) NOT NULL,   -- 'read', 'update', 'delete', 'execute', 'grant:read', 'grant:update', etc.
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    granted_by UUID REFERENCES users(uuid),
-    granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    expires_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(role_id, entity_type, entity_id, operation)
 );
 ```
 
-The resource_permissions table defines Operations that a Role can perform on specific Entities. This table grants permissions for entity_type and entity_id to a specific Role. Operations include both regular operations ('read', 'update', 'delete', 'execute') and grant operations ('grant:read', 'grant:update', 'grant:delete', 'grant:execute'). A Role with regular permissions can perform operations only on that Entity. A Role with grant permissions can grant the corresponding regular permissions for that specific Entity to other Roles.
+The resource_permissions table defines Operations that a Role can perform on specific Entities. This table grants permissions for entity_type and entity_id to a specific Role. A Role with the regular permissions and the grant permissions can perform operations only on that Entity.
 
 #### Migration from Existing Tables (Example: VFolder Invitation)
 
@@ -202,4 +196,4 @@ Detailed permission sets for each role will be defined in the implementation spe
 
 ## Conclusion
 
-The RBAC system of Backend.AI enables granular permission management for users and projects, providing flexible access control suitable for various use cases. This system manages permissions based on Roles and allows granular permission settings through Role Permissions and Resource Permissions. By integrating grant operations into the permission system, controlled permission delegation is possible while maintaining simplicity and security. The RBAC system ensures consistent permission verification for all requests, enhancing security and management efficiency.
+The RBAC system of Backend.AI enables granular permission management for users and projects, providing flexible access control suitable for various use cases. This system manages permissions based on Roles and allows granular permission settings through Role Permissions and Resource Permissions. The RBAC system ensures consistent permission verification for all requests, enhancing security and management efficiency.
