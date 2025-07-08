@@ -61,6 +61,28 @@ A Role with regular permissions can perform operations only on that specific Ent
 
 This enables granular permission management such as granting only 'read' permission for a specific Session, or granting 'read' and 'update' permissions for a specific VFolder to enable collaboration with other users.
 
+### Managing Roles as Entities
+
+Roles themselves are entities that can be managed through the RBAC system. This enables controlled delegation of role management responsibilities across different scopes.
+
+#### Role Management Operations
+
+- **create**: Create new roles within the permitted scope
+- **read**: View role definitions and their permissions
+- **update**: Modify role names, descriptions, and permissions
+- **delete**: Soft-delete roles by changing their state
+- **assign**: Assign roles to users within the permitted scope
+
+#### Role Scope Hierarchy
+
+Roles follow the same scope hierarchy as other permissions:
+- **Global roles**: Can be used across the entire system
+- **Domain roles**: Can be used within a specific domain
+- **Project roles**: Can be used within a specific project
+- **User roles**: Specific to individual users
+
+Role management permissions respect this hierarchy - for example, a domain admin can only create and manage roles within their domain scope.
+
 ### Grant Permission Rules
 
 1. **Scope Hierarchy**: Permissions can only be granted within the same or narrower scope
@@ -96,6 +118,26 @@ This enables granular permission management such as granting only 'read' permiss
    3. For resource permissions, verify the granter has access to the specific resource
 4. If all checks pass, the Permission is granted; otherwise, an appropriate error message is returned.
 
+#### Role Management Flow
+
+1. **Creating a Role**:
+   - User must have 'create' permission for entity_type='role' within the target scope
+   - The new role is created with the same or narrower scope than the creator's permission scope
+
+2. **Assigning a Role**:
+   - User must have 'assign' permission for the specific role
+   - The assignment respects scope hierarchy (can only assign to users within the same or narrower scope)
+   - Creates a new record in the user_roles table
+
+3. **Modifying a Role**:
+   - User must have 'update' permission for entity_type='role' within the role's scope
+   - Changes to role permissions are immediately reflected for all users with that role
+
+4. **Deleting a Role**:
+   - User must have 'delete' permission for entity_type='role' within the role's scope
+   - Performs soft delete by updating the 'state' field and setting 'deleted_at' timestamp
+   - Existing user_roles assignments can be retained for audit purposes
+
 ### Database Schema
 
 The RBAC system of Backend.AI is implemented by extending the existing database structure. New RBAC tables are integrated with the existing scope-based permission system.
@@ -109,14 +151,15 @@ CREATE TABLE roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(64) NOT NULL,
     description TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
+    state VARCHAR(32) DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(name, scope_type, scope_id)
 );
 ```
 
-The roles table defines sets of Permissions within the system. Each Role includes a name, description, activation status, etc. This table itself does not actually grant permissions, but connects with other tables to manage permissions. The `id` value of the `roles` table is used as the `role_id` in each permissions table, defining the relationship between Roles and Permissions.
+The roles table defines sets of Permissions within the system. Each Role includes a name, description, state, etc. The `state` field enables soft deletion and role lifecycle management. This table itself does not actually grant permissions, but connects with other tables to manage permissions. The `id` value of the `roles` table is used as the `role_id` in each permissions table, defining the relationship between Roles and Permissions.
 
 ##### 2. user_roles table
 ```sql
@@ -127,19 +170,21 @@ CREATE TABLE user_roles (
     granted_by UUID REFERENCES users(uuid),
     granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     expires_at TIMESTAMP WITH TIME ZONE,
+    state VARCHAR(32) DEFAULT 'active',
+    deleted_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(user_id, role_id)
 );
 ```
 
-The user_roles table defines the relationship between each user and Role. Users can have multiple Roles, and each Role receives permissions through associations with specific permissions tables. Users granted permissions can record who granted the permission through the `granted_by` field. The `expires_at` field allows for temporary role assignments that automatically expire at a specified time.
+The user_roles table defines the relationship between each user and Role. Users can have multiple Roles, and each Role receives permissions through associations with specific permissions tables. Users granted permissions can record who granted the permission through the `granted_by` field. The `expires_at` field allows for temporary role assignments that automatically expire at a specified time. The `state` and `deleted_at` fields enable soft deletion of role assignments while maintaining audit history.
 
 ##### 3. role_permissions table (Role Permissions)
 ```sql
 CREATE TABLE role_permissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-    entity_type VARCHAR(32) NOT NULL, -- 'session', 'vfolder', 'image', etc.
-    operation VARCHAR(32) NOT NULL,   -- 'create', 'read', 'update', 'delete', 'grant:create', 'grant:read', etc.
+    entity_type VARCHAR(32) NOT NULL, -- 'session', 'vfolder', 'image', 'role', etc.
+    operation VARCHAR(32) NOT NULL,   -- 'create', 'read', 'update', 'delete', 'assign', 'grant:create', 'grant:read', etc.
     scope_type VARCHAR(32),           -- 'global', 'domain', 'project', 'user'
     scope_id VARCHAR(64),             -- Specific scope identifier
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -147,7 +192,7 @@ CREATE TABLE role_permissions (
 );
 ```
 
-The role_permissions table defines Operations that a Role can perform on specific Entity Types. This table grants permissions for entity_type and operation to a specific Role. A Role with the regular permissions and the grant permissions can perform operations on all Entities of the Entity Type within a defined scope.
+The role_permissions table defines Operations that a Role can perform on specific Entity Types. This table grants permissions for entity_type and operation to a specific Role. A Role with the regular permissions and the grant permissions can perform operations on all Entities of the Entity Type within a defined scope. The entity_type='role' enables role management permissions, with operations including 'create', 'read', 'update', 'delete', and 'assign'.
 
 ##### 4. resource_permissions table (Resource Permissions)
 ```sql
@@ -187,10 +232,24 @@ Currently, Backend.AI has the VFolder Invitation feature, which operates by gran
 The system includes five predefined roles with the following general permissions:
 
 1. **super-admin**: Global administrator with full permissions across the entire system
+   - Can create, read, update, delete, and assign all roles globally
+   - Has all permissions for all entity types
+
 2. **admin**: Domain-level administrator with full permissions within their domain
+   - Can create, read, update, delete, and assign roles within their domain
+   - Has all permissions for all entity types within their domain scope
+
 3. **project-admin**: Project-level administrator with full permissions within their project
+   - Can create, read, update, delete, and assign roles within their project
+   - Has all permissions for all entity types within their project scope
+
 4. **monitor**: Read-only access for monitoring purposes
+   - Can read all entities within their assigned scope
+   - Cannot create, update, delete, or assign any roles
+
 5. **user**: Basic user with limited permissions for their own resources
+   - Can read and update their own resources
+   - Cannot manage roles
 
 Detailed permission sets for each role will be defined in the implementation specification.
 
