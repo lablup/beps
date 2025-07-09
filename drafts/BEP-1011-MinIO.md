@@ -22,6 +22,9 @@ This way, users will be able to conveniently reuse their model buckets regardles
 
 Users should be able to use their existing bucket data in the form of a vfolder on Backend.AI without any hassle.
 
+One thing to note is that, unlike other storage backends, MinIO is an object storage system, so it is not sufficient to have just a single connection implementing the BaseVolume in the storage proxy. To support object storage, the MinIO bucket should be mounted directly on the agent host.
+
+
 # Implementations
 
 To achieve this, the following tasks need to be carried out.
@@ -40,7 +43,7 @@ minio-access-key = "your-access-key"
 minio-secret-key = "your-secret-key"
 ```
 
-> Although the combination of access key and secret key was used as an example, in reality, there may be requirements for a wider range of authentication methods such as IAM roles.
+Although the combination of access key and secret key was used as an example, in reality, there may be requirements for a wider range of authentication methods such as IAM roles.
 
 ## Manager
 
@@ -56,13 +59,13 @@ Each bucket's metadata must store, in addition to the credentials, values such a
 
 Before creating a container, the agent lets `s3fs` mount the bucket into the local filesystem and bind-mount it into the container.
 
-We need to keep track of the references to a specific bucket to prevent duplicate mounts and premature unmounts when there are multiple containers using the same bucket.
+Agent need to keep track of the references to a specific bucket to prevent duplicate mounts and premature unmounts since there could be multiple containers using the same bucket.
 
-If the reference count to the bucket is zero after a container is destroyed, the agent could unmount the bucket.
+When the reference count to the bucket becomes zero after a container is destroyed, the agent should unmount the bucket.
 
 # Considerations
 
-The implementation itself may be relatively simple, but we need to consider various issues such as the following.
+The implementation itself might be relatively simple, but we need to consider various issues such as the following.
 
 ## Quota scope support
 
