@@ -182,7 +182,7 @@ class ScanJob:
 
 
 @dataclass
-class MLModelInfo:
+class ModelInfo:
     """Base class for model information from any source"""
     model_id: str  # Source-specific identifier (repo_id for HF)
     name: str
@@ -208,23 +208,6 @@ class ModelFileInfo:
     download_url: Optional[str] = None
     metadata: dict[str, Any] = field(default_factory=dict)
     
-
-@dataclass
-class HFModelInfo(ModelInfo):
-    """HuggingFace-specific model information"""
-    # HF-specific fields
-    sha: Optional[str] = None
-    pipeline_tag: Optional[str] = None
-    library_name: Optional[str] = None
-    datasets: list[str] = field(default_factory=list)
-    metrics: list[dict] = field(default_factory=list)
-    model_index: Optional[Dict[str, Any]] = None
-
-@dataclass
-class HFFileInfo(ModelFileInfo):
-    """HuggingFace-specific file information"""
-    lfs: Optional[Dict[str, str]] = None  # Git LFS metadata
-
 ```
 
 #### Scanner Interface
