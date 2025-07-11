@@ -87,10 +87,10 @@ sequenceDiagram
     Client->>+Manager: Request to rescan artifact registry (GQL mutation)
     Manager->>+ExternalRegistry: Rescan external artifact registry (e.g., HuggingFace)
     ExternalRegistry-->>-Manager: Return artifact metadata
-    Manager->>+Database: Store image metadata and create revision ID
-    Database-->>-Manager: Revision ID created
+    Manager->>+Database: Store image metadata and create image ID
+    Database-->>-Manager: Image ID created
     Manager->>+StorageProxy: Call storage-proxy API for downloading images
-    StorageProxy->>+MinIO: Download images to bucket subdirectory (revision ID path)
+    StorageProxy->>+MinIO: Download images to bucket subdirectory (Image ID path)
     MinIO-->>-StorageProxy: Images downloaded
     StorageProxy-->>-Manager: Download complete
     Manager->>+StorageProxy: Rescan storage proxy as container registry
