@@ -10,7 +10,7 @@ Model Scanner and Downloader for downloading Model codes from external model hub
 
 ## Motivation
 
-Backend.AI currently lacks a systematic way to discover, catalog, and manage ML models from external model registries. Users must manually download models from sources like HuggingFace, manage versions independently, and upload them to VFolders
+Backend.AI currently lacks a systematic way to discover, catalog, and manage ML models from external model registries. Users must manually download models from sources like HuggingFace, manage versions independently, and upload them to Storage
 
 
 ## Current Design
@@ -32,7 +32,7 @@ graph LR
     P1 --> C[Database]
     B --> D[Download Service]
     D --> P2[Plugin Pipeline]
-    P2 --> E[VFolder - Object Storage]
+    P2 --> E[Object Storage]
     
     P1 -.- M1[Metadata Validator]
     P2 -.- C1[Converter]
@@ -52,7 +52,7 @@ sequenceDiagram
     
     U->>API: scan_model_registry(registry_id)
     API->>DB: Create scan job
-    API->>MQ: Publish scan event
+    API->>MQ: Produce scan event
     API-->>U: Return job ID
     
     MQ->>MS: Consume scan event
@@ -70,7 +70,7 @@ sequenceDiagram
     end
     
     MS->>DB: Update job status (COMPLETED)
-    MS->>MQ: Publish completion event
+    MS->>U: Send Scan finished message
 ```
 
 #### Model Download Flow with Plugins
@@ -81,15 +81,15 @@ sequenceDiagram
     participant DS as Download Service
     participant PP as Plugin Pipeline
     participant DB as PostgreSQL
-    participant VF as VFolder Service
-    participant VFOS as VFolder(Object Storage)
+    participant SP as Storage Proxy
+    participant OS as Object Storage
     
-    U->>API: download_model(version_id, vfolder_id)
+    U->>API: download_model(version_id)
     API->>DS: Create download task
     API-->>U: Return task ID
     
-    DS->>VF: Validate VFolder access
-    VF-->>DS: Access granted
+    DS->>SP: Validate Storage access
+    SP-->>DS: Access granted
     
     DS->>DB: Get model metadata
     DB-->>DS: Model info & download URLs
@@ -100,13 +100,13 @@ sequenceDiagram
         DS->>PP: Process file
         Note over PP: Format check<br/>Compression
         PP-->>DS: Processed data
-        DS->>VF: Write to VFolder
-        VF->>VFOS: Store in object storage
+        DS->>SP: Request Write Operation to Storage Proxy
+        SP->>OS: Store in object storage
         DS->>DB: Update download progress
     end
     
     DS->>DB: Update download status (COMPLETED)
-    DS->>API: Send bgtask completion event
+    DS->>API: Send bgtask completion message
     API-->>U: Background task completed
 ```
 
@@ -126,7 +126,7 @@ sequenceDiagram
 3. **Download Serivce**
    - Concurrent download support with progress tracking
    - Resumable downloads for large models
-   - Downloaded artifacts will be stored in VFolder(Form of Object Storage) via VFolder Service
+   - Downloaded artifacts will be stored in (Object Storage) via Storage Proxy
 
 
 
