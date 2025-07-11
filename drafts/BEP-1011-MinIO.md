@@ -111,6 +111,13 @@ TBW: For now, we are not considering the Package service as a priority.
 
 The following additional implementations are required to realize the use cases.
 
+## Integration with MinIO
+
+Add service code to the storage proxy for configuring the artifact registry.
+We can refer to components such as `BaseVolume` and `FsOpModel`, which operate as the VFolder backend, when writing the implementation. But, since the artifact registry storage does not need to function as a VFolder at this point, let's remove any unnecessary parts and properly abstract the interface.
+
+Communication with MinIO is handled using `s3fs`. We will need to implement an `FsOpModel` that mounts the `s3fs` bucket as a file system on the storage host and handles download and upload operations.
+
 ## API Specifications
 
 It will be necessary to implement additional CRUD REST APIs for each artifact type in the storage proxy.
@@ -256,7 +263,7 @@ app.router.add_route("POST", "/artifact-registry/file/download", create_artifact
 
 ## Config format
 
-```
+```toml
 [artifact_registry.storage]
 
 [artifact_registry.storage.minio1]
