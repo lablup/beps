@@ -14,6 +14,8 @@ To include the currently external Reservoir service into the Backend.AI core, an
 
 # Use Cases
 
+Artifact registry repository will be used in the following scenarios:
+
 ## Use Case in Model Service
 
 For model artifacts, the following usage scenarios can be considered:
@@ -107,25 +109,9 @@ TBW: For now, we are not considering the Package service as a priority.
 
 # Storage Proxy Implementations
 
-Add MinIO storage backend type to support configurations like the one below.
+The following additional implementations are required to realize the use cases.
 
-## Config format
-
-```
-[artifact_registry.storage]
-
-[artifact_registry.storage.minio1]
-backend = "minio"
-endpoint = "https://minio.example.com"
-
-[artifact_registry.storage.minio1.options]
-minio-access-key = "your-access-key"
-minio-secret-key = "your-secret-key"
-```
-
-Let's receive endpoint and credential information for the MinIO bucket in the same format as above, and mount it as a usable volume in the storage proxy using `s3fs`.
-
-## API
+## API Specifications
 
 It will be necessary to implement additional CRUD REST APIs for each artifact type in the storage proxy.
 
@@ -255,7 +241,6 @@ Response:
 }
 ```
 
-
 ### API Route Mappings Example
 
 The artifact registry APIs will be added to the existing manager app routes:
@@ -268,3 +253,19 @@ app.router.add_route("POST", "/artifact-registry/list", list_artifacts)
 app.router.add_route("DELETE", "/artifact-registry/{revision_id}", delete_artifact)
 app.router.add_route("POST", "/artifact-registry/file/download", create_artifact_download_session)
 ```
+
+## Config format
+
+```
+[artifact_registry.storage]
+
+[artifact_registry.storage.minio1]
+backend = "minio"
+endpoint = "https://minio.example.com"
+
+[artifact_registry.storage.minio1.options]
+minio-access-key = "your-access-key"
+minio-secret-key = "your-secret-key"
+```
+
+Let's receive endpoint and credential information for the MinIO bucket in the same format as above, and mount it as a usable volume in the storage proxy using `s3fs`.
