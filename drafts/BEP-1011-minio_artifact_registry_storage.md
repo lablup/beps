@@ -6,15 +6,15 @@ Created: 2025-07-10
 
 # Support MinIO as Artifact Registry Storage Backend
 
-Let's add support for MinIO in the storage proxy as a storage backend for the artifact registry.
+Let's add support for `MinIO` in the storage proxy as a storage backend for the artifact registry.
 
 ## Motivation
 
-To include the currently external Reservoir service into the Backend.AI core, an internal storage system capable of storing all kinds of artifacts including models and images must be integrated.
+To include the currently external *Reservoir* service into the Backend.AI core, an internal storage system capable of storing all kinds of artifacts including models and images must be integrated.
 
 # Use Cases
 
-Artifact registry repository will be used in the following scenarios:
+Depending on the type of model artifact, the following use cases can be considered:
 
 ## Use Case in Model Service
 
@@ -73,7 +73,7 @@ For model artifacts, the following usage scenarios can be considered:
 
 4. The images are downloaded to the subdirectory path corresponding to the revision ID of the bucket.
 
-5. Manager caches the image metadata in the database by rescanning the storage proxy as a container registry. (Requirements: Implement Harbor registry API specification in the storage proxy to enable it to function as a container registry)
+5. Manager caches the image metadata in the database by rescanning the storage proxy as a container registry. (*Requirements: Implement Harbor registry API specification in the storage proxy to enable it to function as a container registry*)
 
 ```mermaid
 sequenceDiagram
@@ -109,15 +109,14 @@ TBW: For now, we are not considering the Package service as a priority.
 
 # Database Schema
 
-The artifact registry requires database tables to store mapping information between artifacts and MinIO bucket paths.
-
 ## Artifact Registry Storage Mapping Table
+
+The artifact registry requires database tables to store mapping information between artifacts and MinIO bucket paths.
 
 ```sql
 -- Artifact storage mappings table to store MinIO bucket path mappings
 CREATE TABLE artifact_storage_mappings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    revision_id UUID NOT NULL REFERENCES artifact_revisions(id) ON DELETE CASCADE,
     storage_backend VARCHAR(50) NOT NULL DEFAULT 'minio',  -- 'minio', 's3', etc.
     bucket_name VARCHAR(255) NOT NULL,
     bucket_path TEXT NOT NULL,  -- path within the bucket
@@ -137,7 +136,7 @@ The following additional implementations are required to realize the use cases.
 Add service code to the storage proxy for configuring the artifact registry.
 We can refer to components such as `BaseVolume` and `FsOpModel`, which operate as the VFolder backend, when writing the implementation. But, since the artifact registry storage does not need to function as a VFolder at this point, let's remove any unnecessary parts and properly abstract the interface.
 
-Communication with MinIO is handled using `s3fs`. We will need to implement an `FsOpModel` that mounts the `s3fs` bucket as a file system on the storage host and handles download and upload operations.
+Communication with `MinIO` is handled using `s3fs`. We will need to implement an `FsOpModel` that mounts the `s3fs` bucket as a file system on the storage host and handles download and upload operations.
 
 ## API Specifications
 
@@ -267,19 +266,6 @@ Response:
 {
   "token": "jwt-token-for-download-session"
 }
-```
-
-### API Route Mappings Example
-
-The artifact registry APIs will be added to the existing manager app routes:
-
-```python
-app.router.add_route("POST", "/artifact-registry/download", download_artifacts)
-app.router.add_route("GET", "/artifact-registry/download/{task_id}", get_download_task_status)
-app.router.add_route("GET", "/artifact-registry/mount", get_artifact_mount_path)
-app.router.add_route("POST", "/artifact-registry/list", list_artifacts)
-app.router.add_route("DELETE", "/artifact-registry/{revision_id}", delete_artifact)
-app.router.add_route("POST", "/artifact-registry/file/download", create_artifact_download_session)
 ```
 
 ## Config format
