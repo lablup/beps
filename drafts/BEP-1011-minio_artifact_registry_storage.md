@@ -282,4 +282,8 @@ minio-access-key = "your-access-key"
 minio-secret-key = "your-secret-key"
 ```
 
-Let's receive endpoint and credential information for the MinIO bucket in the same format as above, and mount it as a usable volume in the storage proxy using `s3fs`.
+# Reference
+
+- [`s3fs` FAQ](https://github.com/s3fs-fuse/s3fs-fuse/wiki/FAQ)
+
+- [`s3fs` options](https://github.com/s3fs-fuse/s3fs-fuse/wiki/Fuse-Over-Amazon#options)
