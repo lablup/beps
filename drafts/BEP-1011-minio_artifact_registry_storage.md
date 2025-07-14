@@ -114,16 +114,18 @@ TBW: For now, we are not considering the Package service as a priority.
 The artifact registry requires database tables to store mapping information between artifacts and MinIO bucket paths.
 
 ```sql
--- Artifact storage mappings table to store MinIO bucket path mappings
-CREATE TABLE artifact_storage_mappings (
+CREATE TABLE artifact_registry (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(63) NOT NULL,
     storage_backend VARCHAR(50) NOT NULL DEFAULT 'minio',  -- 'minio', 's3', etc.
-    bucket_name VARCHAR(255) NOT NULL,
-    bucket_path TEXT NOT NULL,  -- path within the bucket
-    storage_config JSONB,  -- storage-specific configuration
-    status VARCHAR(50) NOT NULL DEFAULT 'pending',  -- 'pending', 'downloading', 'ready', 'failed'
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+);
+
+-- MinIO storage specific
+CREATE TABLE artifact_registry_minio (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    registry_id  UUID NOT NULL,  -- Create an ORM relationship instead of a foreign key constraint.
+    bucket_name VARCHAR(63) NOT NULL,
+    bucket_path TEXT NOT NULL,
 );
 ```
 
