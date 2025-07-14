@@ -83,18 +83,15 @@ A revision represents a specific version of a model service.
   - `config`: Strategy-specific configuration (JSON)
 
 #### Runtime, Model, Service Configuration
-- `image`: Container image to use
-  - `name`: Name of container image
-  - `architecture`: CPU architecture (x86_64, aarch64)
 - `runtimeVariant`: Runtime type (vllm, tgi, custom)
-- `modelFolderId`: VFolder ID containing model files
-- `modelMountDestination`: Model mount path in container (default: /models)
-- `modelDefinitionPath`: Model definition file path (default: model-definition.yaml)
 - `servingConfig`: Service-specific configuration options in JSON format.  
   - For vLLM: `max_model_length`, `parallelism` (`pp_size`, `tp_size`), `extra_cli_parameters`
 - `environ`: Environment variables to be set in the container, provided as a JSON object
+- `modelFolderId`: VFolder ID containing model files
+- `modelMountDestination`: Model mount path in container (default: /models)
+- `modelDefinitionPath`: Model definition file path (default: model-definition.yaml)
 - `extraMounts`: List of additional volume mount configurations
-  - Each mount contains: `vfolderId`, `mountDestination`, `type`, `permission` (optional)
+    - Each mount contains: `vfolderId`, `mountDestination`, `type`, `permission` (optional)
 
 #### Traffic and Scaling
 - `trafficRatio`: Traffic percentage allocated to this revision (0.0-1.0)
@@ -102,6 +99,7 @@ A revision represents a specific version of a model service.
 - `replicas`: Current running replica count
 
 #### Relationship Fields
+- `image`: Image for model serving revision runtime
 - `deployment`: Parent deployment
 - `routings`: Routing entries for this revision
 - `autoScalingRules`: Auto-scaling rules
