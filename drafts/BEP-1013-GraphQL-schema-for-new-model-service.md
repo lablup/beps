@@ -24,13 +24,13 @@ The GraphQL schema introduces two primary entities and their supporting types to
    - Public endpoint configuration
    - Cluster configuration and scaling groups
    - Domain and project associations
+   - Traffic distribution between revisions
 
 2. **ModelServingRevision**: Represents a specific version of a model within a deployment. It handles:
    - Container image and runtime configuration
    - Model storage and mounting
    - Resource allocation and scaling
    - Service-specific configurations
-   - Traffic distribution
 
 ## Technical Details
 
