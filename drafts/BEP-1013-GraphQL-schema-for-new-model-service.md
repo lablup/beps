@@ -55,7 +55,6 @@ A deployment is the top-level concept that manages multiple revisions.
 #### Relationship Fields
 - `domain`: Backend.AI domain
 - `project`: Owning project (group)
-- `scalingGroup`: Scaling Group for model deployment
 - `createdUser`: User who created the deployment
 - `revisions`: All revisions belonging to this deployment
 
@@ -107,6 +106,7 @@ A revision represents a specific version of a model service.
 - `routings`: Routing entries for this revision
 - `tokens`: Authentication tokens
 - `autoScalingRules`: Auto-scaling rules
+- `scalingGroup`: Scaling Group for model deployment
 
 #### Metadata
 - `errorData`: Error information if failed
@@ -170,9 +170,6 @@ query GetDeploymentDetails {
     project {
       name
     }
-    scalingGroup {
-      name
-    }
     createdUser {
       email
       accessKey
@@ -199,6 +196,9 @@ query GetDeploymentDetails {
           modelStorageId
           modelMountDestination
           modelDefinitionPath
+          scalingGroup {
+            name
+          }
           serviceDefinitionPath
           servingConfig
           environ
@@ -341,7 +341,6 @@ mutation CreateSimpleDeployment {
     tags: ["production", "llm"]
     clusterMode: "single-node"
     clusterSize: 1
-    scalingGroup: "gpu-cluster"
     redeploymentStrategy: {
       type: RECREATE
       config: ""
@@ -357,6 +356,7 @@ mutation CreateSimpleDeployment {
       modelStorageId: "eeb8c377-15d2-4a16-8ed8-01215f3a5353"
       modelMountDestination: "/models"
       modelDefinitionPath: "model-definition.yaml"
+      scalingGroup: "gpu-cluster"
       serviceDefinitionPath: "service-definition.toml"
       resourceSlots: "{\"cuda.device\": 2, \"mem\": \"48g\", \"cpu\": 8}"
       resourceOpts: "{\"shmem\": \"64m\"}"
@@ -409,7 +409,6 @@ mutation CreateExpertDeployment {
     tags: ["experimental", "falcon"]
     clusterMode: "multi-node"
     clusterSize: 3
-    scalingGroup: "gpu-premium"
     redeploymentStrategy: {
       type: CANARY
       config: "{\"canaryPercentage\": 10, \"canaryDuration\": \"30m\", \"successThreshold\": 95}"
@@ -425,6 +424,7 @@ mutation CreateExpertDeployment {
       modelStorageId: "550e8400-e29b-41d4-a716-446655440000"
       modelMountDestination: "/models"
       modelDefinitionPath: "model-definition.yaml"
+      scalingGroup: "gpu-premium"
       serviceDefinitionPath: "service-definition.toml"
       resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
       resourceOpts: "{\"shmem\": \"128m\"}"
