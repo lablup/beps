@@ -28,7 +28,6 @@ For model artifacts, the following usage scenarios can be considered:
 
 4. The models and metadata files are downloaded to the subdirectory path corresponding to the revision ID of the bucket.
 
-5. When creating a model service deployment, the subdirectory of the bucket corresponding to the model ID specified in the selected revision is mounted to the inference session at the point when the service scales out.
 
 ```mermaid
 sequenceDiagram
@@ -38,7 +37,6 @@ sequenceDiagram
     participant Database
     participant StorageProxy
     participant MinIO
-    participant InferenceSession
     
     Client->>+Manager: Request to rescan artifact registry (GQL mutation)
     Manager->>+ExternalRegistry: Rescan external artifact registry (e.g., HuggingFace)
@@ -50,58 +48,11 @@ sequenceDiagram
     MinIO-->>-StorageProxy: Models downloaded
     StorageProxy-->>-Manager: Download complete
     Manager-->>-Client: Rescan complete
-    
-    Client->>+Manager: Create model service deployment
-    Manager->>+Database: Select model revision
-    Database-->>-Manager: Return revision info
-    Manager->>+MinIO: Get bucket subdirectory for model ID
-    MinIO-->>-Manager: Return bucket path
-    Manager->>+InferenceSession: Mount bucket subdirectory to inference session
-    InferenceSession-->>-Manager: Mount complete
-    Manager-->>-Client: Deployment complete
 ```
 
 ## Use Case in Image Service
 
-For model artifacts, the following usage scenarios can be considered:
-
-1. Client sends a request to the manager to rescan the artifact registry via a GQL mutation.
-
-2. Manager rescans an external artifact registry (such as HuggingFace or an external manager), and the metadata of the models is stored in the database.
-
-3. Call storage-proxy API for downloading the rescanned images to the storage.
-
-4. The images are downloaded to the subdirectory path corresponding to the revision ID of the bucket.
-
-5. Manager caches the image metadata in the database by rescanning the storage proxy as a container registry. (*Requirements: Implement Harbor registry API specification in the storage proxy to enable it to function as a container registry*)
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Manager
-    participant ExternalRegistry
-    participant Database
-    participant StorageProxy
-    participant MinIO
-
-    Client->>+Manager: Request to rescan artifact registry (GQL mutation)
-    Manager->>+ExternalRegistry: Rescan external artifact registry (e.g., HuggingFace)
-    ExternalRegistry-->>-Manager: Return artifact metadata
-    Manager->>+Database: Store image metadata and create image ID
-    Database-->>-Manager: Image ID created
-    Manager->>+StorageProxy: Call storage-proxy API for downloading images
-    StorageProxy->>+MinIO: Download images to bucket subdirectory (Image ID path)
-    MinIO-->>-StorageProxy: Images downloaded
-    StorageProxy-->>-Manager: Download complete
-    Manager->>+StorageProxy: Rescan storage proxy as container registry
-    StorageProxy-->>-Manager: Return image metadata
-    Manager->>+Database: Cache image metadata in database
-    Database-->>-Manager: Metadata cached
-    Manager-->>-Client: Rescan complete
-    
-    StorageProxy->>+MinIO: Retrieve image from bucket
-    MinIO-->>-StorageProxy: Return image data
-```
+TBW: For now, we are not considering the Image service as a priority.
 
 ## Use Case in Package Service
 
