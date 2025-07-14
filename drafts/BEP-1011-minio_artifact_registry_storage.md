@@ -10,15 +10,9 @@ Let's add support for `MinIO` in the storage proxy as a storage backend for the 
 
 ## Motivation
 
-To include the currently external *Reservoir* service into the Backend.AI core, an internal storage system capable of storing all kinds of artifacts including models and images must be integrated.
+Let's integrate external storage into the storage proxy so that models, images, packages, and more can be stored and accessed by the Backend.AI scanner. We will use MinIO as the storage backend.
 
 # Use Cases
-
-Depending on the type of model artifact, the following use cases can be considered:
-
-## Use Case in Model Service
-
-For model artifacts, the following usage scenarios can be considered:
 
 1. Client sends a request to the manager to rescan the artifact registry via a GQL mutation.
 
@@ -27,7 +21,6 @@ For model artifacts, the following usage scenarios can be considered:
 3. Call storage-proxy API for downloading the rescanned models to the storage.
 
 4. The models and metadata files are downloaded to the subdirectory path corresponding to the revision ID of the bucket.
-
 
 ```mermaid
 sequenceDiagram
@@ -50,14 +43,6 @@ sequenceDiagram
     Manager-->>-Client: Rescan complete
 ```
 
-## Use Case in Image Service
-
-TBW: For now, we are not considering the Image service as a priority.
-
-## Use Case in Package Service
-
-TBW: For now, we are not considering the Package service as a priority.
-
 # Database Schema
 
 ## Artifact Registry Storage Mapping Table
@@ -74,7 +59,7 @@ CREATE TABLE artifact_registry (
 -- MinIO storage specific data
 CREATE TABLE artifact_registry_minio (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    registry_id  UUID NOT NULL,  -- Create an ORM relationship instead of a foreign key constraint.
+    registry_id UUID NOT NULL,  -- Create an ORM relationship instead of a foreign key constraint.
     bucket_name VARCHAR(63) NOT NULL,
     bucket_path TEXT NOT NULL,
 );
@@ -143,16 +128,6 @@ Response:
 }
 ```
 
-#### Get Storage Mount Path
-```
-GET /storage/mount-path/{path}
-
-Response:
-{
-  "mount_path": "/var/lib/backend.ai/storage/models/gpt-2/abc123def456"
-}
-```
-
 #### List Storage Content
 ```
 GET /storage/list/{path}
@@ -183,33 +158,26 @@ DELETE /storage/{path}
 Response: 204 No Content
 ```
 
-#### Create File Download Session
-```
-POST /storage/file/download
-Content-Type: application/json
-
-{
-  "file_path": "models/gpt-2/abc123def456/pytorch_model.bin"
-}
-
-Response:
-{
-  "token": "jwt-token-for-download-session"
-}
-```
-
 ## Config format
 
 ```toml
-[external_storage]
+[storages]
 
-[external_storage.minio1]
+[storages.minio1]
 backend = "minio"
 endpoint = "https://minio.example.com"
 
-[external_storage.minio1.options]
+[storages.minio1.options]
 minio-access-key = "your-access-key"
 minio-secret-key = "your-secret-key"
+
+[storages.minio2]
+backend = "minio"
+endpoint = "https://minio.example2.com"
+
+[storages.minio2.options]
+minio-access-key = "your-access-key2"
+minio-secret-key = "your-secret-key2"
 ```
 
 # Reference
