@@ -179,7 +179,7 @@ Response:
 }
 ```
 
-#### List Storage Content
+#### List Storage Files
 
 Lists the files located in a specific path of the designated storage and returns them in the response.
 
@@ -205,7 +205,7 @@ Response:
 }
 ```
 
-#### Delete Storage Content
+#### Delete Storage Files
 
 Deletes the files located in a specific path of the designated storage.
 
@@ -215,7 +215,7 @@ DELETE /storages/{storage_type}
 Response: 204 No Content
 ```
 
-## Config format
+## Storage Proxy Config format
 
 ```toml
 [storages]
@@ -237,7 +237,7 @@ minio-access-key = "your-access-key2"
 minio-secret-key = "your-secret-key2"
 ```
 
-# Reference
+# References
 
 - [`s3fs` FAQ](https://github.com/s3fs-fuse/s3fs-fuse/wiki/FAQ)
 
