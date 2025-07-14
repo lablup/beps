@@ -99,10 +99,32 @@ Rescans the metadata from an external registry. After the rescanned metadata is 
 POST /storages/{storage_type}/rescan
 Content-Type: application/json
 
-{...}
+{
+  "registry_type": "huggingface",
+  "registry_url": "https://huggingface.co/gpt2",
+  "artifact_type": "model",
+  "artifact_name": "gpt-2",
+  "revision": "main"
+}
 
 Response:
-{...}
+{
+  "status": "success",
+  "message": "Metadata rescanned successfully",
+  "artifact_id": "123e4567-e89b-12d3-a456-426614174000",
+  "revision_id": "abc123def456",
+  "metadata": {
+    "name": "gpt-2",
+    "type": "model",
+    "size": 548000000,
+    "files": [
+      "config.json",
+      "pytorch_model.bin",
+      "tokenizer.json"
+    ],
+    "last_modified": "2025-07-11T10:00:00Z"
+  }
+}
 ```
 
 #### Download Artifact Files from External Registry
@@ -113,7 +135,19 @@ Rescans the external registry and downloads the artifact files to the designated
 POST /storages/{storage_type}/download
 Content-Type: application/json
 
-{...}
+{
+  "artifact_id": "123e4567-e89b-12d3-a456-426614174000",
+  "revision_id": "abc123def456",
+  "registry_type": "huggingface",
+  "registry_url": "https://huggingface.co/gpt2",
+  "target_bucket": "artifacts",
+  "target_path": "models/gpt-2/abc123def456",
+  "files": [
+    "config.json",
+    "pytorch_model.bin",
+    "tokenizer.json"
+  ]
+}
 
 Response:
 {
