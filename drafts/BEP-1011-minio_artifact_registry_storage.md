@@ -91,17 +91,29 @@ It will be necessary to implement additional CRUD REST APIs for each artifact ty
 
 The storage proxy APIs will provide general storage operations for managing content from external sources:
 
-#### Download Files
+#### Rescan Metadata from External Registry
+
+Rescans the metadata from an external registry. After the rescanned metadata is sent to the *Manager*, it will be stored in the database.
+
 ```
-POST /storage/download
+POST /storages/{storage_type}/rescan
 Content-Type: application/json
 
-{
-  "target_paths": [
-    "models/gpt-2/abc123def456",
-    "models/gpt-3/abc123def456",
-  ]
-}
+{...}
+
+Response:
+{...}
+```
+
+#### Download Artifact Files from External Registry
+
+Rescans the external registry and downloads the artifact files to the designated storage.
+
+```
+POST /storages/{storage_type}/download
+Content-Type: application/json
+
+{...}
 
 Response:
 {
@@ -111,9 +123,13 @@ Response:
 }
 ```
 
+
 #### Get Download Task Status
+
+Returns the download task's status.
+
 ```
-GET /storage/download/{task_id}
+GET /storages/{storage_type}/download/{task_id}
 
 Response:
 {
@@ -130,8 +146,11 @@ Response:
 ```
 
 #### List Storage Content
+
+Lists the files located in a specific path of the designated storage and returns them in the response.
+
 ```
-GET /storage/list/{path}
+GET /storages/{storage_type}/list-files
 
 Response:
 {
@@ -153,8 +172,11 @@ Response:
 ```
 
 #### Delete Storage Content
+
+Deletes the files located in a specific path of the designated storage.
+
 ```
-DELETE /storage/{path}
+DELETE /storages/{storage_type}
 
 Response: 204 No Content
 ```
