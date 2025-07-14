@@ -120,13 +120,19 @@ CREATE TABLE artifact_registry (
     storage_backend VARCHAR(50) NOT NULL DEFAULT 'minio',  -- 'minio', 's3', etc.
 );
 
--- MinIO storage specific
+-- MinIO storage specific data
 CREATE TABLE artifact_registry_minio (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     registry_id  UUID NOT NULL,  -- Create an ORM relationship instead of a foreign key constraint.
     bucket_name VARCHAR(63) NOT NULL,
     bucket_path TEXT NOT NULL,
 );
+
+-- Create separate tables for storing metadata for each storage type.
+CREATE TABLE artifact_registry_s3 (
+...
+);
+
 ```
 
 # Storage Proxy Implementations
