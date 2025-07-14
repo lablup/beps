@@ -57,6 +57,7 @@ A deployment is the top-level concept that manages multiple revisions.
 - `project`: Owning project (group)
 - `createdUser`: User who created the deployment
 - `revisions`: All revisions belonging to this deployment
+- `accessTokens`: Access Tokens for endpoint url
 
 #### Metadata
 - `createdAt`: Creation timestamp
@@ -104,7 +105,6 @@ A revision represents a specific version of a model service.
 #### Relationship Fields
 - `deployment`: Parent deployment
 - `routings`: Routing entries for this revision
-- `tokens`: Authentication tokens
 - `autoScalingRules`: Auto-scaling rules
 - `scalingGroup`: Scaling Group for model deployment
 
