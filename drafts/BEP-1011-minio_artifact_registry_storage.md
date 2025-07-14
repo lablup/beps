@@ -150,43 +150,40 @@ Communication with `MinIO` is handled using `s3fs`. We will need to implement an
 
 It will be necessary to implement additional CRUD REST APIs for each artifact type in the storage proxy.
 
-### Artifact Registry APIs
+### Storage Proxy REST APIs
 
-The artifact registry APIs will be structured to handle artifact-specific operations:
+The storage proxy APIs will provide general storage operations for managing content from external sources:
 
-#### Download Artifacts from External Registry
+#### Download Files
 ```
-POST /artifact-registry/download
+POST /storage/download
 Content-Type: application/json
 
 {
-  "registry_type": "huggingface",
-  "registry_url": "https://huggingface.co/models/gpt-2",
-  "revision_id": "abc123def456",
-  "artifact_type": "model",
-  "credentials": {
-    "token": "hf_token_here"
-  }
+  "target_paths": [
+    "models/gpt-2/abc123def456",
+    "models/gpt-3/abc123def456",
+  ]
 }
 
 Response:
 {
   "task_id": "download_task_123",
   "status": "started",
-  "message": "Download started for artifact gpt-2"
+  "message": "Download started to models/gpt-2/abc123def456"
 }
 ```
 
 #### Get Download Task Status
 ```
-GET /artifact-registry/download/{task_id}
+GET /storage/download/{task_id}
 
 Response:
 {
   "task_id": "download_task_123",
   "status": "completed",
   "progress": 100,
-  "artifact_path": "models/gpt-2/abc123def456",
+  "target_path": "models/gpt-2/abc123def456",
   "downloaded_files": [
     "config.json",
     "pytorch_model.bin",
@@ -195,78 +192,52 @@ Response:
 }
 ```
 
-#### Get Artifact Mount Path
+#### Get Storage Mount Path
 ```
-GET /artifact-registry/mount
-Content-Type: application/json
-
-{
-  "revision_id": "abc123def456",
-  "artifact_type": "model",
-  "subpath": "models/gpt-2/abc123def456"
-}
+GET /storage/mount-path/{path}
 
 Response:
 {
-  "mount_path": "/var/lib/backend.ai/storage/artifact-registry/models/gpt-2/abc123def456"
+  "mount_path": "/var/lib/backend.ai/storage/models/gpt-2/abc123def456"
 }
 ```
 
-#### List Artifacts in Registry
+#### List Storage Content
 ```
-POST /artifact-registry/list
-Content-Type: application/json
-
-{
-  "artifact_type": "model",
-  "revision_id": "abc123def456"
-}
+GET /storage/list/{path}
 
 Response:
 {
-  "artifacts": [
+  "path": "models/gpt-2/abc123def456",
+  "size": 548000000,
+  "files": [
     {
-      "revision_id": "abc123def456",
-      "artifact_type": "model",
-      "artifact_path": "models/gpt-2/abc123def456",
-      "size": 548000000,
-      "files": [
-        {
-          "name": "config.json",
-          "size": 1024,
-          "last_modified": "2025-07-11T10:00:00Z"
-        },
-        {
-          "name": "pytorch_model.bin",
-          "size": 547998976,
-          "last_modified": "2025-07-11T10:05:00Z"
-        }
-      ]
+      "name": "config.json",
+      "size": 1024,
+      "last_modified": "2025-07-11T10:00:00Z"
+    },
+    {
+      "name": "pytorch_model.bin",
+      "size": 547998976,
+      "last_modified": "2025-07-11T10:05:00Z"
     }
   ]
 }
 ```
 
-#### Delete Artifact
+#### Delete Storage Content
 ```
-DELETE /artifact-registry/{artifact_id}
-Content-Type: application/json
-
-{
-  "artifact_type": "model"
-}
+DELETE /storage/{path}
 
 Response: 204 No Content
 ```
 
 #### Create File Download Session
 ```
-POST /artifact-registry/file/download
+POST /storage/file/download
 Content-Type: application/json
 
 {
-  "revision_id": "abc123def456",
-  "artifact_type": "model",
   "file_path": "models/gpt-2/abc123def456/pytorch_model.bin"
 }
 
@@ -279,13 +250,13 @@ Response:
 ## Config format
 
 ```toml
-[artifact_registry.storage]
+[external_storage]
 
-[artifact_registry.storage.minio1]
+[external_storage.minio1]
 backend = "minio"
 endpoint = "https://minio.example.com"
 
-[artifact_registry.storage.minio1.options]
+[external_storage.minio1.options]
 minio-access-key = "your-access-key"
 minio-secret-key = "your-secret-key"
 ```
