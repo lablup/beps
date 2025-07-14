@@ -87,10 +87,9 @@ A revision represents a specific version of a model service.
   - `name`: Name of container image
   - `architecture`: CPU architecture (x86_64, aarch64)
 - `runtimeVariant`: Runtime type (vllm, tgi, custom)
-- `modelStorageId`: Object Storage ID containing model files
+- `modelFolderId`: VFolder ID containing model files
 - `modelMountDestination`: Model mount path in container (default: /models)
 - `modelDefinitionPath`: Model definition file path (default: model-definition.yaml)
-- `serviceDefinitionPath`: Service definition file path (default: service-definition.toml)
 - `servingConfig`: Service-specific configuration options in JSON format.  
   - For vLLM: `max_model_length`, `parallelism` (`pp_size`, `tp_size`), `extra_cli_parameters`
 - `environ`: Environment variables to be set in the container, provided as a JSON object
@@ -136,10 +135,9 @@ Fields required for creating a new revision:
   - `name`: Image name with tag
   - `architecture`: Architecture of CPU
 - `runtimeVariant`: Runtime type
-- `modelStorageId`: Object Storage ID
+- `modelFoldereId`: Model VFolder ID
 - `modelMountDestination`: Model mount path
 - `modelDefinitionPath`: Model definition file path
-- `serviceDefinitionPath`: Service definition file path
 - `resourceSlots`: Resource requirements
 - `resourceOpts`(optional): Additional resource options
 - `servingConfig`: Service configuration
@@ -193,13 +191,12 @@ query GetDeploymentDetails {
             architecture
           }
           runtimeVariant
-          modelStorageId
+          modelFolderId
           modelMountDestination
           modelDefinitionPath
           scalingGroup {
             name
           }
-          serviceDefinitionPath
           servingConfig
           environ
           extraMounts {
@@ -291,7 +288,7 @@ query GetRevisionDetails {
       architecture
     }
     runtimeVariant
-    modelStorageId
+    modelFolderId
     resourceSlots
     resourceOpts
     servingConfig
@@ -353,11 +350,10 @@ mutation CreateSimpleDeployment {
         architecture: "x86_64"
       }
       runtimeVariant: "vllm"
-      modelStorageId: "eeb8c377-15d2-4a16-8ed8-01215f3a5353"
+      modelFolderId: "eeb8c377-15d2-4a16-8ed8-01215f3a5353"
       modelMountDestination: "/models"
       modelDefinitionPath: "model-definition.yaml"
       scalingGroup: "gpu-cluster"
-      serviceDefinitionPath: "service-definition.toml"
       resourceSlots: "{\"cuda.device\": 2, \"mem\": \"48g\", \"cpu\": 8}"
       resourceOpts: "{\"shmem\": \"64m\"}"
       servingConfig: "{\"max_model_length\": 4096, \"parallelism\": {\"pp_size\": 1, \"tp_size\": 2}}"
@@ -421,11 +417,10 @@ mutation CreateExpertDeployment {
         architecture: "x86_64"
       }
       runtimeVariant: "custom"
-      modelStorageId: "550e8400-e29b-41d4-a716-446655440000"
+      modelFolderId: "550e8400-e29b-41d4-a716-446655440000"
       modelMountDestination: "/models"
       modelDefinitionPath: "model-definition.yaml"
       scalingGroup: "gpu-premium"
-      serviceDefinitionPath: "service-definition.toml"
       resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
       resourceOpts: "{\"shmem\": \"128m\"}"
       servingConfig: "{\"extra_cli_parameters\": \"--trust-remote-code --enable-lora --gpu-memory-utilization 0.95\"}"
@@ -472,10 +467,9 @@ mutation CreateNewRevision {
         architecture: "x86_64"
       }
       runtimeVariant: "vllm"
-      modelStorageId: "550e8400-e29b-41d4-a716-446655440000"
+      modelFolderId: "550e8400-e29b-41d4-a716-446655440000"
       modelMountDestination: "/models"
       modelDefinitionPath: "model-definition.yaml"
-      serviceDefinitionPath: "service-definition.toml"
       resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
       resourceOpts: "{\"shmem\": \"128m\"}"
       servingConfig: "{\"max_model_length\": 8192, \"parallelism\": {\"pp_size\": 2, \"tp_size\": 4}, \"extra_cli_parameters\": \"--enable-lora\"}"
