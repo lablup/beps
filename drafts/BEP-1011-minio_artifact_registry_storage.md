@@ -54,22 +54,39 @@ CREATE TABLE artifacts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     type VARCHAR(20) NOT NULL,  -- 'image', 'package', 'model'
     name VARCHAR(50) NOT NULL,
-    storage_backend VARCHAR(50) NOT NULL DEFAULT 'minio',  -- 'minio', 's3', etc.
+    storage_type VARCHAR(50) NOT NULL DEFAULT 'minio',  -- 'minio', 's3', etc.
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- MinIO storage specific data
-CREATE TABLE artifact_meta_minio (
+CREATE TABLE artifact_storage_backend (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(50) NOT NULL,
-    bucket_name VARCHAR(63) NOT NULL,
-    bucket_path TEXT NOT NULL,
+    artifact_id UUID NOT NULL REFERENCES artifacts(id),
+    access_key TEXT NOT NULL,
+    secret_key TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+)
+
+-- Access control per each object
+CREATE TABLE artifact_storage_refs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    artifact_id UUID NOT NULL REFERENCES artifacts(id),
+    storage_object_id UUID NOT NULL REFERENCES storage_objects(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(artifact_id, storage_object_id)
 );
 
--- Create separate tables for storing metadata for each storage type.
-CREATE TABLE artifact_meta_s3 (
-...
+-- S3 compataible storage object data
+-- (Since object storage that is not S3-compatible is not planned to be supported, we will use the name storage_object.)
+CREATE TABLE storage_objects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    artifact_id UUID NOT NULL REFERENCES artifacts(id),
+    object_key TEXT NOT NULL,  -- bucket path
+    size_bytes BIGINT,
+    checksum_sha256 VARCHAR(64),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(artifact_id, object_key)
 );
-
 ```
 
 # Storage Proxy Implementations
@@ -83,6 +100,12 @@ We can refer to components such as `BaseVolume` and `FsOpModel`, which operate a
 
 Communication with `MinIO` is handled using `s3fs`. We will need to implement an `FsOpModel` that mounts the `s3fs` bucket as a file system on the storage host and handles download and upload operations.
 
+## Storage proxy status management
+
+It will be necessary to track the storage status of the storage proxy.
+
+Let's cache the current status of the storage in Redis such as which storage objects are currently mounted, which are not yet mounted, or if any errors have occurred—so that the storage proxy's status can be easily checked.
+
 ## API Specifications
 
 It will be necessary to implement additional CRUD REST APIs for each artifact type in the storage proxy.
@@ -90,6 +113,8 @@ It will be necessary to implement additional CRUD REST APIs for each artifact ty
 ### Storage Proxy REST APIs
 
 The storage proxy APIs will provide general storage operations for managing content from external sources:
+
+The REST APIs specified below should include the external registry’s `type`, `endpoint`, and `credentials` in the request body.
 
 #### Rescan Metadata from External Registry
 
@@ -213,28 +238,6 @@ Deletes the files located in a specific path of the designated storage.
 DELETE /storages/{storage_type}
 
 Response: 204 No Content
-```
-
-## Storage Proxy Config format
-
-```toml
-[storages]
-
-[storages.minio1]
-backend = "minio"
-endpoint = "https://minio.example.com"
-
-[storages.minio1.options]
-minio-access-key = "your-access-key"
-minio-secret-key = "your-secret-key"
-
-[storages.minio2]
-backend = "minio"
-endpoint = "https://minio.example2.com"
-
-[storages.minio2.options]
-minio-access-key = "your-access-key2"
-minio-secret-key = "your-secret-key2"
 ```
 
 # References
