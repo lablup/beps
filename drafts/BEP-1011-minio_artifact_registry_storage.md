@@ -12,7 +12,7 @@ Let's add support for `MinIO` in the storage proxy as a storage backend for the 
 
 Let's integrate external storage into the storage proxy so that models, images, packages, and more can be stored and accessed by the Backend.AI scanner. We will use MinIO as the storage backend.
 
-# Use Cases
+# Use Case
 
 1. Client sends a request to the manager to rescan the artifact registry via a GQL mutation.
 
@@ -50,22 +50,23 @@ sequenceDiagram
 The artifact registry requires database tables to store mapping information between artifacts and MinIO bucket paths.
 
 ```sql
-CREATE TABLE artifact_registry (
+CREATE TABLE artifacts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(63) NOT NULL,
+    type VARCHAR(20) NOT NULL,  -- 'image', 'package', 'model'
+    name VARCHAR(50) NOT NULL,
     storage_backend VARCHAR(50) NOT NULL DEFAULT 'minio',  -- 'minio', 's3', etc.
 );
 
 -- MinIO storage specific data
-CREATE TABLE artifact_registry_minio (
+CREATE TABLE artifact_meta_minio (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    registry_id UUID NOT NULL,  -- Create an ORM relationship instead of a foreign key constraint.
+    name VARCHAR(50) NOT NULL,
     bucket_name VARCHAR(63) NOT NULL,
     bucket_path TEXT NOT NULL,
 );
 
 -- Create separate tables for storing metadata for each storage type.
-CREATE TABLE artifact_registry_s3 (
+CREATE TABLE artifact_meta_s3 (
 ...
 );
 
