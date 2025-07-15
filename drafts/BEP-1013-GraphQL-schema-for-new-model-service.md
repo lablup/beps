@@ -81,6 +81,16 @@ A deployment is the top-level concept that manages multiple revisions.
 
 #### Schema
 ```graphql
+enum DeploymentStatus {
+    INACTIVE
+    ACTIVE
+}
+
+enum ClusterMode {
+    SINGLE_NODE
+    MULTI_NODE
+}
+
 type ClusterConfig {
     clusterMode: ClusterMode!
     clusterSize: Int!
@@ -94,6 +104,12 @@ type ReplicaManagement {
 type ModelReplica {
     name: String!
     revision: ModelRevision!
+}
+
+enum DeploymentStrategyType {
+    ROLLING
+    BLUE_GREEN
+    CANARY
 }
 
 union StrategyConfig = RollingConfig | BlueGreenConfig | CanaryConfig
