@@ -383,33 +383,33 @@ query GetDeploymentDetails {
     tags
     
     revision {
-      id
-      name
-      tags
-      status
+        id
+        name
+        tags
+        status
     }
     
     revisionHistory {
-      id
-      name
-      tags
-      createdAt
+        id
+        name
+        tags
+        createdAt
     }
     
     replicaConfig {
-      desiredReplicaCount
-      replicas {
-        name
-        revision {
-          id
-          name
+        desiredReplicaCount
+        replicas {
+            name
+            revision {
+            id
+            name
+            }
         }
-      }
-      autoScalingRules {
-        id
-        metricType
-        threshold
-      }
+        autoScalingRules {
+            id
+            metricType
+            threshold
+        }
     }
     
     clusterConfig {
@@ -418,24 +418,24 @@ query GetDeploymentDetails {
     }
     
     deploymentStrategy {
-      type
-      config
+        type
+        config
     }
     
     domain {
-      name
+        name
     }
     
     project {
-      name
+        name
     }
     
     createdUser {
-      email
+        email
     }
     
     resourceGroup {
-      name
+        name
     }
     
     createdAt
@@ -448,40 +448,40 @@ query GetDeploymentDetails {
 
 ```graphql
 query ListDeployments {
-  deployments(
-    filter: {
-      status: ACTIVE
-      openToPublic: true
-    }
-    limit: 20
-    offset: 0
-  ) {
-    id
-    name
-    endpointUrl
-    status
-    tags
-    openToPublic
-    
-    revision {
-      id
-      name
-      tags
-      status
-    }
-    
-    clusterConfig {
-        mode
-        size
-    }
-    
-    replicaConfig {
-      desiredReplicaCount
-      replicas {
+    deployments(
+        filter: {
+        status: ACTIVE
+        openToPublic: true
+        }
+        limit: 20
+        offset: 0
+    ) {
+        id
         name
-      }
+        endpointUrl
+        status
+        tags
+        openToPublic
+        
+        revision {
+            id
+            name
+            tags
+            status
+        }
+        
+        clusterConfig {
+            mode
+            size
+        }
+        
+        replicaConfig {
+            desiredReplicaCount
+            replicas {
+                name
+            }
+        }
     }
-  }
 }
 ```
 
@@ -501,18 +501,18 @@ query GetRevisionDetails {
     }
     
     modelRuntimeConfig {
-      runtimeVariant
-      serviceConfig
-      environ
+        runtimeVariant
+        serviceConfig
+        environ
     }
     
     modelVFolderConfig {
-      vfolder {
-        id
-        name
-      }
-      mountDestination
-      definitionPath
+        vfolder {
+            id
+            name
+        }
+        mountDestination
+        definitionPath
     }
     mounts {
         vfolderId
@@ -522,17 +522,17 @@ query GetRevisionDetails {
     }
     
     image {
-      name
-      architecture
+        name
+        architecture
     }
     
     routings(first: 10) {
-      edges {
-        node {
-          id
-          status
+        edges {
+            node {
+            id
+            status
+            }
         }
-      }
     }
     
     errorData
@@ -558,11 +558,11 @@ mutation CreateSimpleDeployment {
         size: 1
     }
     deploymentStrategy: {
-      type: ROLLING
-      config: {
-        maxSurge: 1
-        maxUnavailable: 0
-      }
+        type: ROLLING
+        config: {
+            maxSurge: 1
+            maxUnavailable: 0
+        }
     }
     resourceGroup: "gpu-cluster"
     initialRevision: {
@@ -601,21 +601,21 @@ mutation CreateSimpleDeployment {
         resourceOpts: "{\"shmem\": \"64m\"}"
       }
     }
-  }) {
-    deployment {
-      id
-      name
-      endpointUrl
-      status
-      tags
-      revision {
-        id
-        name
-        tags
-        status
-      }
+    }) {
+        deployment {
+            id
+            name
+            endpointUrl
+            status
+            tags
+            revision {
+                id
+                name
+                tags
+                status
+            }
+        }
     }
-  }
 }
 ```
 
@@ -623,75 +623,75 @@ mutation CreateSimpleDeployment {
 
 ```graphql
 mutation CreateExpertDeployment {
-  createModelDeployment(input: {
-    name: "falcon-7b-optimized"
-    preferredDomainName: "falcon.mycompany.ai"
-    domain: "default"
-    project: "research-team-id"
-    openToPublic: false
-    tags: ["experimental", "falcon"]
-    clusterConfig: {
-        mode: MULTI_NODE
-        size: 3
-    }
-    deploymentStrategy: {
-      type: CANARY
-      config: {
-        canaryPercentage: 10
-        canaryDuration: "30m"
-        successThreshold: 95
-      }
-    }
-    resourceGroup: "gpu-premium"
-    initialRevision: {
-      name: "baseline"
-      tags: ["v1.0", "baseline"]
-      image: {
-        name: "python-tcp-app:3.9-ubuntu20.04"
-        architecture: "x86_64"
-      }
-      modelRuntimeConfig: {
-        runtimeVariant: CUSTOM
-        serviceConfig: {
-          extraCliParameters: "--trust-remote-code --enable-lora --gpu-memory-utilization 0.95"
+    createModelDeployment(input: {
+        name: "falcon-7b-optimized"
+        preferredDomainName: "falcon.mycompany.ai"
+        domain: "default"
+        project: "research-team-id"
+        openToPublic: false
+        tags: ["experimental", "falcon"]
+        clusterConfig: {
+            mode: MULTI_NODE
+            size: 3
         }
-        environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\", \"HF_TOKEN\": \"hf_xxx\"}"
-      }
-      modelVFolderConfig: {
-        vfolderId: "550e8400-e29b-41d4-a716-446655440000"
-        mountDestination: "/models"
-        definitionPath: "model-definition.yaml"
-      }
-      mounts: [
-          {
-            vfolderId: "7a83e195-7410-4768-a338-a949cef6be83"
-            destination: "/home/work/datasets"
-            type: BIND
-            permission: READ_WRITE
-          }
-        ]
-      resourceConfig: {
-        resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
-        resourceOpts: "{\"shmem\": \"128m\"}"
-      }
+        deploymentStrategy: {
+            type: CANARY
+            config: {
+                canaryPercentage: 10
+                canaryDuration: "30m"
+                successThreshold: 95
+            }
+        }
+        resourceGroup: "gpu-premium"
+        initialRevision: {
+            name: "baseline"
+            tags: ["v1.0", "baseline"]
+            image: {
+                name: "python-tcp-app:3.9-ubuntu20.04"
+                architecture: "x86_64"
+            }
+            modelRuntimeConfig: {
+                runtimeVariant: CUSTOM
+                serviceConfig: {
+                extraCliParameters: "--trust-remote-code --enable-lora --gpu-memory-utilization 0.95"
+                }
+                environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\", \"HF_TOKEN\": \"hf_xxx\"}"
+            }
+            modelVFolderConfig: {
+                vfolderId: "550e8400-e29b-41d4-a716-446655440000"
+                mountDestination: "/models"
+                definitionPath: "model-definition.yaml"
+            }
+            mounts: [
+                {
+                    vfolderId: "7a83e195-7410-4768-a338-a949cef6be83"
+                    destination: "/home/work/datasets"
+                    type: BIND
+                    permission: READ_WRITE
+                }
+                ]
+            resourceConfig: {
+                resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
+                resourceOpts: "{\"shmem\": \"128m\"}"
+            }
+        }
+    }) {
+        deployment {
+            id
+            name
+            endpointUrl
+            preferredDomainName
+            tags
+            clusterConfig {
+                mode
+                size
+            }
+            deploymentStrategy {
+                type
+                config
+            }
+        }
     }
-  }) {
-    deployment {
-      id
-      name
-      endpointUrl
-      preferredDomainName
-      tags
-      clusterConfig {
-        mode
-        size
-      }
-      deploymentStrategy {
-        type
-        config
-      }
-    }
-  }
 }
 ```
 
@@ -699,45 +699,45 @@ mutation CreateExpertDeployment {
 
 ```graphql
 mutation CreateNewRevision {
-  createModelRevision(input: {
-    deploymentId: "deployment-uuid"
-    name: "optimized-version"
-    tags: ["v2.0", "optimized"]
-    image: {
-      name: "vllm:0.9.2"
-      architecture: "x86_64"
-    }
-    modelRuntimeConfig: {
-      runtimeVariant: VLLM
-      serviceConfig: {
-        maxModelLength: 8192
-        parallelism: {
-          ppSize: 2
-          tpSize: 4
+    createModelRevision(input: {
+        deploymentId: "deployment-uuid"
+        name: "optimized-version"
+        tags: ["v2.0", "optimized"]
+        image: {
+            name: "vllm:0.9.2"
+            architecture: "x86_64"
         }
-        extraCliParameters: "--enable-lora"
-      }
-      environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\"}"
+        modelRuntimeConfig: {
+            runtimeVariant: VLLM
+            serviceConfig: {
+                maxModelLength: 8192
+                parallelism: {
+                ppSize: 2
+                tpSize: 4
+                }
+                extraCliParameters: "--enable-lora"
+            }
+            environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\"}"
+        }
+        modelVFolderConfig: {
+            vfolderId: "550e8400-e29b-41d4-a716-446655440000"
+            mountDestination: "/models"
+            definitionPath: "model-definition.yaml"
+        }
+        mounts: []
+        resourceConfig: {
+            resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
+            resourceOpts: "{\"shmem\": \"128m\"}"
+        }
+    }) {
+        revision {
+            id
+            name
+            tags
+            status
+            createdAt
+        }
     }
-    modelVFolderConfig: {
-      vfolderId: "550e8400-e29b-41d4-a716-446655440000"
-      mountDestination: "/models"
-      definitionPath: "model-definition.yaml"
-    }
-    mounts: []
-    resourceConfig: {
-      resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
-      resourceOpts: "{\"shmem\": \"128m\"}"
-    }
-  }) {
-    revision {
-      id
-      name
-      tags
-      status
-      createdAt
-    }
-  }
 }
 ```
 
@@ -745,29 +745,29 @@ mutation CreateNewRevision {
 
 ```graphql
 mutation UpdateDeployment {
-  updateModelDeployment(input: {
-    id: "deployment-uuid"
-    openToPublic: true
-    tags: ["production", "llm", "updated"]
-    deploymentStrategy: {
-      type: BLUE_GREEN
-      config: {
-        autoPromotionEnabled: true
-        terminationWaitTime: 300
-      }
+    updateModelDeployment(input: {
+        id: "deployment-uuid"
+        openToPublic: true
+        tags: ["production", "llm", "updated"]
+        deploymentStrategy: {
+        type: BLUE_GREEN
+        config: {
+            autoPromotionEnabled: true
+            terminationWaitTime: 300
+        }
+        }
+    }) {
+        deployment {
+        id
+        name
+        openToPublic
+        tags
+        deploymentStrategy {
+            type
+            config
+        }
+        }
     }
-  }) {
-    deployment {
-      id
-      name
-      openToPublic
-      tags
-      deploymentStrategy {
-        type
-        config
-      }
-    }
-  }
 }
 ```
 
@@ -775,26 +775,26 @@ mutation UpdateDeployment {
 
 ```graphql
 mutation SwitchActiveRevision {
-  updateModelDeployment(input: {
-    id: "deployment-uuid"
-    activeRevisionId: "new-revision-uuid"
-  }) {
-    deployment {
-      id
-      name
-      revision {
-        id
-        name
-        tags
-        status
-      }
-      revisionHistory {
-        id
-        name
-        tags
-      }
+    updateModelDeployment(input: {
+        id: "deployment-uuid"
+        activeRevisionId: "new-revision-uuid"
+}) {
+        deployment {
+            id
+            name
+            revision {
+                id
+                name
+                tags
+                status
+            }
+            revisionHistory {
+                id
+                name
+                tags
+            }
+        }
     }
-  }
 }
 ```
 
