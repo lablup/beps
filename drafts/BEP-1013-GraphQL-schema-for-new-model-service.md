@@ -18,7 +18,7 @@ The GraphQL schema introduces two primary entities and their supporting types to
 
 ### Core Entities
 
-1. **ModelServingDeployment**: The top-level entity representing a model service deployment. It manages:
+1. **ModelDeployment**: The top-level entity representing a model service deployment. It manages:
    - Multiple revisions of a model
    - Traffic routing between revisions
    - Public endpoint configuration
@@ -34,7 +34,7 @@ The GraphQL schema introduces two primary entities and their supporting types to
 
 ## Technical Details
 
-### ModelServingDeployment
+### ModelDeployment
 
 A deployment is the top-level concept that manages multiple revisions.
 
@@ -48,9 +48,24 @@ A deployment is the top-level concept that manages multiple revisions.
 - `openToPublic`: Whether accessible to public
 - `tags`: Tags for model service
 
+#### Replica Configuration
+- `replica`:
+    - `desiredReplicaCount`: Number of replicas to be achieved
+    - `replicas`: List of `ModelReplica`s managed by deployment 
+
+#### Deployment Strategy
+- `deploymentStrategy`
+    - `type`: Types of Model Deploy Strategy
+    - `config`: Configs needed for deployment strategy (e.g., maxSurge)
+
+#### Revision Information
+- `revision`: ModelRevision that deployment now references
+- `revisionHistory`: List of ModelRevision deployment referenced
+
 #### Cluster Configuration
-- `clusterMode`: Cluster mode ('single-node' or 'multi-node')
-- `clusterSize`: Number of nodes in cluster
+- `clusterConfig`:
+    - `clusterMode`: Cluster mode ('single-node' or 'multi-node')
+    - `clusterSize`: Number of nodes in cluster
 
 #### Relationship Fields
 - `domain`: Backend.AI domain
@@ -58,10 +73,64 @@ A deployment is the top-level concept that manages multiple revisions.
 - `createdUser`: User who created the deployment
 - `revisions`: All revisions belonging to this deployment
 - `accessTokens`: Access Tokens for endpoint url
+- `resourceGroup`: Resource Group for deployment
 
 #### Metadata
 - `createdAt`: Creation timestamp
 - `updatedAt`: Last update timestamp
+
+#### Schema
+```graphql
+type ClusterConfig {
+    clusterMode: ClusterMode!
+    clusterSize: Int!
+}
+
+type ReplicaManagement {
+    desiredReplicaCount: Int!
+    replicas: [ModelReplica!]!
+}
+
+type ModelReplica {
+    name: String!
+    revision: ModelRevision! # 1:1
+}
+
+union StrategyConfig = RollingConfig | BlueGreenConfig | CanaryConfig
+
+type DeploymentStrategy {
+    type: DeploymentStrategyType!
+    config: StrategyConfig
+}
+
+type ModelDeploy {
+    id: ID!
+    name: String!
+    endpointUrl: String
+    preferredDomainName: String
+    status: DeploymentStatus!
+    openToPublic: Boolean!
+    tags: [String!]!
+
+    revision: Revision
+    revisionHistory: [Revision!]!
+    
+    replicaConfig: ReplicaManagement!
+    clusterConfig: ClusterConfig!
+
+    deploymentStrategy: DeploymentStrategy!
+
+    domain: Domain!
+    project: Project!
+    createdUser: User!
+    resourceGroup: ResourceGroup!
+    revisions: ModelServingRevision!
+    accessTokens: [AccessToken!]!
+
+    createdAt: DateTime!
+    updatedAt: DateTime!
+}
+```
 
 ### ModelServingRevision
 
@@ -103,7 +172,6 @@ A revision represents a specific version of a model service.
 - `deployment`: Parent deployment
 - `routings`: Routing entries for this revision
 - `autoScalingRules`: Auto-scaling rules
-- `scalingGroup`: Scaling Group for model deployment
 
 #### Metadata
 - `errorData`: Error information if failed
@@ -113,7 +181,7 @@ A revision represents a specific version of a model service.
 
 ## Input Types
 
-### CreateModelServingDeploymentInput
+### CreateModelDeploymentInput
 Fields required for creating a new deployment:
 - `name`: Deployment name
 - `preferredDomainName`(optional): Custom domain
@@ -150,7 +218,7 @@ Fields required for creating a new revision:
 
 ```graphql
 query GetDeploymentDetails {
-  modelServingDeployment(id: "deployment-uuid") {
+  ModelDeployment(id: "deployment-uuid") {
     id
     name
     endpointUrl
@@ -233,7 +301,7 @@ query GetDeploymentDetails {
 
 ```graphql
 query ListDeployments {
-  modelServingDeployments(
+  ModelDeployments(
     first: 20
     filter: "status == 'ACTIVE' AND openToPublic == true"
     order: "created_at DESC"
@@ -328,7 +396,7 @@ query GetRevisionDetails {
 
 ```graphql
 mutation CreateSimpleDeployment {
-  createModelServingDeployment(input: {
+  createModelDeployment(input: {
     name: "llama-3-service"
     domain: "default"
     project: "ml-team-project-id"
@@ -394,7 +462,7 @@ mutation CreateSimpleDeployment {
 
 ```graphql
 mutation CreateExpertDeployment {
-  createModelServingDeployment(input: {
+  createModelDeployment(input: {
     name: "falcon-7b-optimized"
     preferredDomainName: "falcon.mycompany.ai"
     domain: "default"
@@ -541,7 +609,7 @@ mutation ScaleRevision {
 
 ```graphql
 mutation UpdateRedeploymentStrategy {
-  updateModelServingDeployment(
+  updateModelDeployment(
     id: "deployment-uuid"
     input: {
       redeploymentStrategy: {
