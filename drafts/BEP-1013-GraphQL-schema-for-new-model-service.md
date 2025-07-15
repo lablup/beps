@@ -142,7 +142,6 @@ type ModelDeployment {
     project: Project!
     createdUser: User!
     resourceGroup: ResourceGroup!
-    revisions: [ModelRevision!]!
     accessTokens: [AccessToken!]!
 
     createdAt: DateTime!
