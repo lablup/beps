@@ -58,7 +58,7 @@ CREATE TABLE artifacts (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE artifact_storage_backend (
+CREATE TABLE object_storage_backend (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     artifact_id UUID NOT NULL REFERENCES artifacts(id),
     access_key TEXT NOT NULL,
@@ -66,8 +66,7 @@ CREATE TABLE artifact_storage_backend (
     endpoint TEXT NOT NULL,
 )
 
--- Access control per each object
-CREATE TABLE artifact_storage_refs (
+CREATE TABLE association_artifact_storage (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     artifact_id UUID NOT NULL REFERENCES artifacts(id),
     storage_object_id UUID NOT NULL REFERENCES storage_objects(id),
