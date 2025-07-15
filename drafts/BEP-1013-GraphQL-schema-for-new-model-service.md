@@ -149,6 +149,54 @@ type ModelDeploy {
 }
 ```
 
+#### Query & Subscription
+```graphql
+
+type ReplicaMetric {
+  ... # TODO: Fill up metric fields
+}
+
+type DeploymentMetrics {
+    replicaMetrics: [ReplicaMetric!]!
+}
+
+type Query {
+    # Deployment Queries
+    deployments(filter: DeploymentFilter, limit: Int, offset: Int): [ModelDeployment!]!
+    deployment(id: ID!): Deployment
+ 
+    # Replica Queries
+    replica(id: ID!): ModelReplica
+
+    # Metrics
+    deploymentMetrics(id: ID!, filter: DeploymentMetricsFilter): [DeploymentMetrics!]!
+}
+
+type DeploymentMetrics {
+    replicaMetrics: [ReplicaMetric!]!
+}
+
+type Subscription {
+    # Real-time Updates
+    deploymentStatusChanged(deploymentId: ID!): ModelDeployment!
+    replicaStatusChanged(revisionId: ID!): ModelReplica!
+    metricsUpdated(deploymentId: ID!): DeploymentMetrics!
+}
+
+```
+
+#### Mutation
+```graphql
+
+type Mutation {
+    # Deployment Management
+    createModelDeployment(input: CreateModelServingDeploymentInput! ): CreateModelDeploymentPayload!
+    updateModelDeployment(input: UpdateModelServingDeploymentInput! ): UpdateModelDeploymentPayload!
+    deleteModelServingDeployment(id: ID!): ID!
+}
+
+```
+
 ### ModelRevision
 
 A revision represents a specific version of a model service. Revision is immutable component. If you want to update certain value of revision, user must publish new revision
@@ -253,6 +301,32 @@ type ModelgRevision {
 
 ```
 
+#### Query & Subscription
+
+```graphql
+type Query {
+    # Revision Queries
+    revision(id: ID!): ModelRevision
+    revisions(filter: ModelRevisionFilter, order: ModelRevisionOrder, first, after): [Revision!]!
+}
+
+type Subscription {
+  # Real-time Updates
+  deploymentStatusChanged(deploymentId: ID!): Deployment!
+  replicaStatusChanged(revisionId: ID!): ReplicaInstance!
+  metricsUpdated(deploymentId: ID!): DeploymentMetrics!
+}
+
+```
+
+#### Mutation
+```graphql
+type Mutation {
+    createModelRevision(input: CreateModelRevisionInput! ): CreateModelRevisionPayload!
+    deleteModelRevision(id: ID!): ID!
+}
+```
+
 
 ## Input Types
 
@@ -286,8 +360,6 @@ Fields required for creating a new revision:
 - `extraMounts`(optional): List of additional mount configurations
 - `desiredReplicas`: Initial replica count
 
-
-## Query Examples
 
 ### 1. Get Deployment Details
 
