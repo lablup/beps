@@ -65,8 +65,8 @@ A deployment is the top-level concept that manages multiple revisions.
 
 #### Cluster Configuration
 - `clusterConfig`:
-    - `clusterMode`: Cluster mode ('single-node' or 'multi-node')
-    - `clusterSize`: Number of nodes in cluster
+    - `mode`: Cluster mode ('single-node' or 'multi-node')
+    - `size`: Number of nodes in cluster
 
 #### Relationship Fields
 - `domain`: Backend.AI domain
@@ -93,8 +93,8 @@ enum ClusterMode {
 }
 
 type ClusterConfig {
-    clusterMode: ClusterMode!
-    clusterSize: Int!
+    mode: ClusterMode!
+    size: Int!
 }
 
 type ReplicaManagement {
@@ -222,7 +222,7 @@ A revision represents a specific version of a model service. Revision is immutab
     - `vfolder`: Virtual Folder where the model is stored
     - `mountDestination`: Mount path inside the container (default: /models)
     - `definitionPath`: Model definition file path (default: model-definition.yaml)
-    - `mounts`: List of additional volume mounts (each item: vfolderId, destination, type, permission)
+- `mounts`: List of additional volume mounts (each item: vfolderId, destination, type, permission)
 
 #### Relationships
 - `image`: Container image information used
@@ -265,7 +265,6 @@ type ModelVFolderConfig {
     vfolder: VirtualFolderNode!
     mountDestination: String!
     definitionPath: String!
-    mounts: [Mount!]!
 }
 
 type ResourceConfig {
@@ -290,6 +289,7 @@ type ModelRevision {
     resourceConfig: ResourceConfig!
     modelRuntimeConfig: ModelRuntimeConfig!
     modelVFolderConfig: ModelVFolderConfig!
+    mounts: [Mount!]!
  
     # Relationships
     image: Image!
@@ -340,8 +340,8 @@ Fields required for creating a new deployment:
 - `openToPublic`: Whether publicly accessible
 - `tags`(optional): Tags for model service
 - `clusterConfig`: Cluster configuration
-  - `clusterMode`: Single-node or multi-node
-  - `clusterSize`: Number of nodes in cluster
+  - `mode`: Single-node or multi-node
+  - `size`: Number of nodes in cluster
 - `deploymentStrategy`: Deployment strategy configuration
   - `type`: ROLLING, BLUE_GREEN, or CANARY
   - `config`: Strategy-specific configuration
@@ -363,7 +363,7 @@ Fields required for creating a new revision:
   - `vfolderId`: Model VFolder ID
   - `mountDestination`: Model mount path (default: /models)
   - `definitionPath`: Model definition file path
-  - `mounts`(optional): Additional volume mounts
+- `mounts`(optional): Additional volume mounts
 - `resourceConfig`: Resource configuration
   - `resourceSlots`: Resource requirements (JSON)
   - `resourceOpts`(optional): Additional resource options (JSON)
@@ -413,8 +413,8 @@ query GetDeploymentDetails {
     }
     
     clusterConfig {
-      clusterMode
-      clusterSize
+        mode
+        size
     }
     
     deploymentStrategy {
@@ -471,8 +471,8 @@ query ListDeployments {
     }
     
     clusterConfig {
-      clusterMode
-      clusterSize
+        mode
+        size
     }
     
     replicaConfig {
@@ -513,12 +513,12 @@ query GetRevisionDetails {
       }
       mountDestination
       definitionPath
-      mounts {
+    }
+    mounts {
         vfolderId
         destination
         type
         permission
-      }
     }
     
     image {
@@ -554,8 +554,8 @@ mutation CreateSimpleDeployment {
     openToPublic: true
     tags: ["production", "llm"]
     clusterConfig: {
-      clusterMode: SINGLE_NODE
-      clusterSize: 1
+        mode: SINGLE_NODE
+        size: 1
     }
     deploymentStrategy: {
       type: ROLLING
@@ -566,37 +566,37 @@ mutation CreateSimpleDeployment {
     }
     resourceGroup: "gpu-cluster"
     initialRevision: {
-      name: "initial"
-      tags: ["v1.0", "stable"]
-      image: {
-        name: "vllm:0.9.1"
-        architecture: "x86_64"
-      }
-      modelRuntimeConfig: {
+        name: "initial"
+        tags: ["v1.0", "stable"]
+        image: {
+            name: "vllm:0.9.1"
+            architecture: "x86_64"
+        }
+    modelRuntimeConfig: {
         runtimeVariant: VLLM
         serviceConfig: {
-          maxModelLength: 4096
-          parallelism: {
-            ppSize: 1
-            tpSize: 2
-          }
+            maxModelLength: 4096
+            parallelism: {
+                ppSize: 1
+                tpSize: 2
+            }
         }
         environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1\"}"
       }
-      modelVFolderConfig: {
+    modelVFolderConfig: {
         vfolderId: "eeb8c377-15d2-4a16-8ed8-01215f3a5353"
         mountDestination: "/models"
         definitionPath: "model-definition.yaml"
-        mounts: [
-          {
+      }
+    mounts: [
+        {
             vfolderId: "550e8400-e29b-41d4-a716-446655440001"
             destination: "/data"
             type: BIND
             permission: READ_ONLY
-          }
-        ]
-      }
-      resourceConfig: {
+        }
+    ]
+    resourceConfig: {
         resourceSlots: "{\"cuda.device\": 2, \"mem\": \"48g\", \"cpu\": 8}"
         resourceOpts: "{\"shmem\": \"64m\"}"
       }
@@ -631,8 +631,8 @@ mutation CreateExpertDeployment {
     openToPublic: false
     tags: ["experimental", "falcon"]
     clusterConfig: {
-      clusterMode: MULTI_NODE
-      clusterSize: 3
+        mode: MULTI_NODE
+        size: 3
     }
     deploymentStrategy: {
       type: CANARY
@@ -661,7 +661,8 @@ mutation CreateExpertDeployment {
         vfolderId: "550e8400-e29b-41d4-a716-446655440000"
         mountDestination: "/models"
         definitionPath: "model-definition.yaml"
-        mounts: [
+      }
+      mounts: [
           {
             vfolderId: "7a83e195-7410-4768-a338-a949cef6be83"
             destination: "/home/work/datasets"
@@ -669,7 +670,6 @@ mutation CreateExpertDeployment {
             permission: READ_WRITE
           }
         ]
-      }
       resourceConfig: {
         resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
         resourceOpts: "{\"shmem\": \"128m\"}"
@@ -683,8 +683,8 @@ mutation CreateExpertDeployment {
       preferredDomainName
       tags
       clusterConfig {
-        clusterMode
-        clusterSize
+        mode
+        size
       }
       deploymentStrategy {
         type
@@ -723,8 +723,8 @@ mutation CreateNewRevision {
       vfolderId: "550e8400-e29b-41d4-a716-446655440000"
       mountDestination: "/models"
       definitionPath: "model-definition.yaml"
-      mounts: []
     }
+    mounts: []
     resourceConfig: {
       resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
       resourceOpts: "{\"shmem\": \"128m\"}"
