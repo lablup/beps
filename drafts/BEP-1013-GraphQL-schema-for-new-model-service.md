@@ -99,6 +99,7 @@ type ClusterConfig {
 type ReplicaManagement {
     desiredReplicaCount: Int!
     replicas: [ModelReplica!]!
+    autoScalingRules: [AutoScalingRule!]!
 }
 
 type ModelReplica {
@@ -148,51 +149,109 @@ type ModelDeploy {
 }
 ```
 
-### ModelServingRevision
+### ModelRevision
 
-A revision represents a specific version of a model service.
+A revision represents a specific version of a model service. Revision is immutable component. If you want to update certain value of revision, user must publish new revision
 
 #### Basic Fields
 - `id`: Unique identifier
-- `name`: Revision name
-- `tag`: Tag for revision
-- `status`: Revision status (e.g. PENDING, PROVISIONING, HEALTHY, etc...)
+- `name`: Revision name (optional)
+- `tags`: List of revision tags
+- `status`: Revision status (ACTIVE, INACTIVE)
 
-#### Resource Configuration
-- `resourceSlots`: Resource requirements (e.g., {"cuda.device": 2, "mem": "48g", "cpu": 8})
-- `resourceOpts`: Additional resource options (e.g., {"shmem": "64m"})
+#### Resource and Runtime Configuration
+- `resourceConfig`: Resource requirements and additional options
+    - `resourceSlots`: Required resource slot information (e.g., {"cuda.device": 2, "mem": "48g", "cpu": 8})
+    - `resourceOpts`: Additional resource options (e.g., {"shmem": "64m"})
+- `ModelRuntimeConfig`: Runtime type and service configuration
+    - `runtimeVariant`: Runtime type (VLLM, SGLANG, NVIDIA, MOJO, etc.)
+    - `serviceConfig`: Service-specific configuration (e.g., for vLLM: max_model_length, parallelism, etc.)
+    - `environ`: Container environment variables (JSON)
 
-#### Redeployment Strategy
-- `redeploymentStrategy`: Strategy for redeployment
-  - `type`: ROLLING, BLUE_GREEN, CANARY, RECREATE (Can be implemented with Enum)
-  - `config`: Strategy-specific configuration (JSON)
+#### Model and Mount Configuration
+- `modelVFolderConfig`: Model file and mount information
+    - `vfolder`: Virtual Folder where the model is stored
+    - `mountDestination`: Mount path inside the container (default: /models)
+    - `definitionPath`: Model definition file path (default: model-definition.yaml)
+    - `mounts`: List of additional volume mounts (each item: vfolderId, destination, type, permission)
 
-#### Runtime, Model, Service Configuration
-- `runtimeVariant`: Runtime type (vllm, tgi, custom)
-- `servingConfig`: Service-specific configuration options in JSON format.  
-  - For vLLM: `max_model_length`, `parallelism` (`pp_size`, `tp_size`), `extra_cli_parameters`
-- `environ`: Environment variables to be set in the container, provided as a JSON object
-- `modelFolderId`: VFolder ID containing model files
-- `modelMountDestination`: Model mount path in container (default: /models)
-- `modelDefinitionPath`: Model definition file path (default: model-definition.yaml)
-- `extraMounts`: List of additional volume mount configurations
-    - Each mount contains: `vfolderId`, `mountDestination`, `type`, `permission` (optional)
-
-#### Traffic and Scaling
-- `trafficRatio`: Traffic percentage allocated to this revision (0.0-1.0)
-- `desiredReplicas`: Target replica count
-- `replicas`: Current running replica count
-
-#### Relationship Fields
-- `image`: Image for model serving revision runtime
-- `deployment`: Parent deployment
-- `routings`: Routing entries for this revision
-- `autoScalingRules`: Auto-scaling rules
+#### Relationships
+- `image`: Container image information used
+- `routings`: Routing information for this revision
 
 #### Metadata
 - `errorData`: Error information if failed
 - `createdAt`: Creation timestamp
-- `updatedAt`: Last update timestamp
+
+#### Schema
+```graphql
+scalar JSONString
+
+enum RuntimeVariant {
+    VLLM,
+    SGLANG,
+    NVIDIA
+    MOJO
+}
+
+enum MountPermission {
+    READ_ONLY
+    READ_WRITE
+    RW_DELETE
+}
+
+enum RevisionStatus {
+    ACTIVE
+    INACTIVE
+}
+
+type Mount {
+    vfolderId: ID!
+    destination: String!
+    type: MountType!
+    permission: MountPermission!
+}
+
+type ModelVFolderConfig {
+    vfolder: VirtualFolderNode!
+    mountDestination: String!
+    definitionPath: String!
+    mounts: [Mount!]!
+}
+
+type ResourceConfig {
+    resourceSlots: JSONString!
+    resourceOpts: JSONString
+}
+
+union ServiceConfig = VLLMServiceConfig | SGLANGServiceConfig | NVIDIAServiceConfig | MOJOServiceConfig | CustomServiceConfig
+
+type ModelRuntimeConfig {
+    runtimeVariant: RuntimeVariant!
+    serviceConfig: ServiceConfig
+    environ: JSONString
+}
+
+type ModelgRevision {
+    id: ID!
+    name: String
+    tags: [String!]!
+    status: RevisionStatus!
+
+    resourceConfig: ResourceConfig!
+    ModelRuntimeConfig: ModelRuntimeConfig!
+    modelVFolderConfig: ModelVFolderConfig!
+ 
+    # Relationships
+    image: Image!
+    routings(first: Int, after: String): RoutingConnection!
+    
+    # Error and Metadata
+    errorData: JSONString
+    createdAt: DateTime!
+}
+
+```
 
 
 ## Input Types
