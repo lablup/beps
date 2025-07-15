@@ -654,7 +654,7 @@ mutation CreateExpertDeployment {
                 serviceConfig: {
                 extraCliParameters: "--trust-remote-code --enable-lora --gpu-memory-utilization 0.95"
                 }
-                environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\", \"HF_TOKEN\": \"hf_xxx\"}"
+                environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\"}"
             }
             modelVFolderConfig: {
                 vfolderId: "550e8400-e29b-41d4-a716-446655440000"
