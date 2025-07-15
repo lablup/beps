@@ -19,18 +19,19 @@ The GraphQL schema introduces two primary entities and their supporting types to
 ### Core Entities
 
 1. **ModelDeployment**: The top-level entity representing a model service deployment. It manages:
-   - Multiple revisions of a model
-   - Traffic routing between revisions
-   - Public endpoint configuration
-   - Cluster configuration and scaling groups
+   - Active revision and revision history
+   - Deployment strategy (Rolling, Blue-Green, Canary)
+   - Public endpoint configuration and custom domain
+   - Cluster configuration and resource groups
    - Domain and project associations
-   - Traffic distribution between revisions
+   - Replica management with auto-scaling rules
 
-2. **ModelServingRevision**: Represents a specific version of a model within a deployment. It handles:
+2. **ModelRevision**: Represents an immutable version of a model within a deployment. It handles:
    - Container image and runtime configuration
-   - Model storage and mounting
-   - Resource allocation and scaling
+   - Model storage and mounting configuration
+   - Resource requirements and runtime variant
    - Service-specific configurations
+   - Additional volume mounts
 
 ## Technical Details
 
@@ -59,8 +60,8 @@ A deployment is the top-level concept that manages multiple revisions.
     - `config`: Configs needed for deployment strategy (e.g., maxSurge)
 
 #### Revision Information
-- `revision`: ModelRevision that deployment now references
-- `revisionHistory`: List of ModelRevision deployment referenced
+- `revision`: Current active ModelRevision that deployment references
+- `revisionHistory`: List of previous ModelRevisions deployment referenced
 
 #### Cluster Configuration
 - `clusterConfig`:
@@ -120,7 +121,7 @@ type DeploymentStrategy {
     config: StrategyConfig
 }
 
-type ModelDeploy {
+type ModelDeployment {
     id: ID!
     name: String!
     endpointUrl: String
@@ -129,8 +130,8 @@ type ModelDeploy {
     openToPublic: Boolean!
     tags: [String!]!
 
-    revision: Revision
-    revisionHistory: [Revision!]!
+    revision: ModelRevision
+    revisionHistory: [ModelRevision!]!
     
     replicaConfig: ReplicaManagement!
     clusterConfig: ClusterConfig!
@@ -141,7 +142,7 @@ type ModelDeploy {
     project: Project!
     createdUser: User!
     resourceGroup: ResourceGroup!
-    revisions: ModelServingRevision!
+    revisions: [ModelRevision!]!
     accessTokens: [AccessToken!]!
 
     createdAt: DateTime!
@@ -280,14 +281,14 @@ type ModelRuntimeConfig {
     environ: JSONString
 }
 
-type ModelgRevision {
+type ModelRevision {
     id: ID!
     name: String
     tags: [String!]!
     status: RevisionStatus!
 
     resourceConfig: ResourceConfig!
-    ModelRuntimeConfig: ModelRuntimeConfig!
+    modelRuntimeConfig: ModelRuntimeConfig!
     modelVFolderConfig: ModelVFolderConfig!
  
     # Relationships
@@ -332,40 +333,47 @@ type Mutation {
 
 ### CreateModelDeploymentInput
 Fields required for creating a new deployment:
-- `name`: Deployment name
-- `preferredDomainName`(optional): Custom domain
-- `domain`: Backend.AI domain
+- `name`: Deployment name (unique within domain)
+- `preferredDomainName`(optional): Custom domain preference
+- `domain`: Backend.AI domain name or ID
 - `project`: Project (group) ID or name
 - `openToPublic`: Whether publicly accessible
-- `clusterMode`: Cluster mode
-- `clusterSize`: Cluster size
-- `redeploymentStrategy`: Deployment strategy configuration
+- `tags`(optional): Tags for model service
+- `clusterConfig`: Cluster configuration
+  - `clusterMode`: Single-node or multi-node
+  - `clusterSize`: Number of nodes in cluster
+- `deploymentStrategy`: Deployment strategy configuration
+  - `type`: ROLLING, BLUE_GREEN, or CANARY
+  - `config`: Strategy-specific configuration
 - `initialRevision`: Initial revision configuration
+- `resourceGroup`: Resource group for deployment
 
-### CreateModelServingRevisionInput
+### CreateModelRevisionInput
 Fields required for creating a new revision:
 - `name`(optional): Revision name
-- `tag`(otional): Revision tag
+- `tags`(optional): List of revision tags
 - `image`: Container image information
   - `name`: Image name with tag
-  - `architecture`: Architecture of CPU
-- `runtimeVariant`: Runtime type
-- `modelFoldereId`: Model VFolder ID
-- `modelMountDestination`: Model mount path
-- `modelDefinitionPath`: Model definition file path
-- `resourceSlots`: Resource requirements
-- `resourceOpts`(optional): Additional resource options
-- `servingConfig`: Service configuration
-- `environ`(optional): Environment variables
-- `extraMounts`(optional): List of additional mount configurations
-- `desiredReplicas`: Initial replica count
+  - `architecture`: CPU architecture
+- `modelRuntimeConfig`: Runtime configuration
+  - `runtimeVariant`: VLLM, SGLANG, NVIDIA, MOJO, or custom
+  - `serviceConfig`: Service-specific configuration
+  - `environ`(optional): Environment variables (JSON)
+- `modelVFolderConfig`: Model folder configuration
+  - `vfolderId`: Model VFolder ID
+  - `mountDestination`: Model mount path (default: /models)
+  - `definitionPath`: Model definition file path
+  - `mounts`(optional): Additional volume mounts
+- `resourceConfig`: Resource configuration
+  - `resourceSlots`: Resource requirements (JSON)
+  - `resourceOpts`(optional): Additional resource options (JSON)
 
 
 ### 1. Get Deployment Details
 
 ```graphql
 query GetDeploymentDetails {
-  ModelDeployment(id: "deployment-uuid") {
+  deployment(id: "deployment-uuid") {
     id
     name
     endpointUrl
@@ -373,71 +381,63 @@ query GetDeploymentDetails {
     status
     openToPublic
     tags
-    clusterMode
-    clusterSize
-    domain {
+    
+    revision {
+      id
       name
+      tags
+      status
     }
-    project {
+    
+    revisionHistory {
+      id
       name
+      tags
+      createdAt
     }
-    createdUser {
-      email
-      accessKey
+    
+    replicaConfig {
+      desiredReplicaCount
+      replicas {
+        name
+        revision {
+          id
+          name
+        }
+      }
+      autoScalingRules {
+        id
+        metricType
+        threshold
+      }
     }
-    redeploymentStrategy {
+    
+    clusterConfig {
+      clusterMode
+      clusterSize
+    }
+    
+    deploymentStrategy {
       type
       config
     }
-    revisions(first: 10) {
-      edges {
-        node {
-          id
-          name
-          tag
-          status
-          trafficRatio
-          replicas
-          desiredReplicas
-          image {
-            name
-            architecture
-          }
-          runtimeVariant
-          modelFolderId
-          modelMountDestination
-          modelDefinitionPath
-          scalingGroup {
-            name
-          }
-          servingConfig
-          environ
-          extraMounts {
-            vfolderId
-            mountDestination
-            type
-            permission
-          }
-          routings(first: 5) {
-            edges {
-              node {
-                id
-                status
-                session {
-                  id
-                  status
-                }
-              }
-            }
-          }
-        }
-      }
-      pageInfo {
-        hasNextPage
-        hasPreviousPage
-      }
-      totalCount
+    
+    domain {
+      name
     }
+    
+    project {
+      name
+    }
+    
+    createdUser {
+      email
+    }
+    
+    resourceGroup {
+      name
+    }
+    
     createdAt
     updatedAt
   }
@@ -448,33 +448,39 @@ query GetDeploymentDetails {
 
 ```graphql
 query ListDeployments {
-  ModelDeployments(
-    first: 20
-    filter: "status == 'ACTIVE' AND openToPublic == true"
-    order: "created_at DESC"
+  deployments(
+    filter: {
+      status: ACTIVE
+      openToPublic: true
+    }
+    limit: 20
+    offset: 0
   ) {
-    edges {
-      node {
-        id
+    id
+    name
+    endpointUrl
+    status
+    tags
+    openToPublic
+    
+    revision {
+      id
+      name
+      tags
+      status
+    }
+    
+    clusterConfig {
+      clusterMode
+      clusterSize
+    }
+    
+    replicaConfig {
+      desiredReplicaCount
+      replicas {
         name
-        endpointUrl
-        status
-        tags
-        openToPublic
-        clusterMode
-        revisions(first: 1, filter: "status == 'HEALTHY'") {
-          edges {
-            node {
-              name
-              tag
-              replicas
-              trafficRatio
-            }
-          }
-        }
       }
     }
-    totalCount
   }
 }
 ```
@@ -483,56 +489,54 @@ query ListDeployments {
 
 ```graphql
 query GetRevisionDetails {
-  modelServingRevision(id: "revision-uuid") {
+  revision(id: "revision-uuid") {
     id
     name
-    tag
+    tags
     status
-    trafficRatio
-    replicas
-    desiredReplicas
-    deployment {
-      id
-      name
-      endpointUrl
+    
+    resourceConfig {
+      resourceSlots
+      resourceOpts
     }
+    
+    modelRuntimeConfig {
+      runtimeVariant
+      serviceConfig
+      environ
+    }
+    
+    modelVFolderConfig {
+      vfolder {
+        id
+        name
+      }
+      mountDestination
+      definitionPath
+      mounts {
+        vfolderId
+        destination
+        type
+        permission
+      }
+    }
+    
     image {
       name
       architecture
     }
-    runtimeVariant
-    modelFolderId
-    resourceSlots
-    resourceOpts
-    servingConfig
-    environ
-    extraMounts {
-      vfolderId
-      mountDestination
-      type
-      permission
-    }
-    routings {
+    
+    routings(first: 10) {
       edges {
         node {
           id
           status
-          trafficRatio
         }
       }
     }
-    autoScalingRules {
-      edges {
-        node {
-          id
-          metricType
-          threshold
-        }
-      }
-    }
+    
     errorData
     createdAt
-    updatedAt
   }
 }
 ```
@@ -549,56 +553,66 @@ mutation CreateSimpleDeployment {
     project: "ml-team-project-id"
     openToPublic: true
     tags: ["production", "llm"]
-    clusterMode: "single-node"
-    clusterSize: 1
-    redeploymentStrategy: {
-      type: RECREATE
-      config: ""
+    clusterConfig: {
+      clusterMode: SINGLE_NODE
+      clusterSize: 1
     }
+    deploymentStrategy: {
+      type: ROLLING
+      config: {
+        maxSurge: 1
+        maxUnavailable: 0
+      }
+    }
+    resourceGroup: "gpu-cluster"
     initialRevision: {
       name: "initial"
-      tag: "v1"
+      tags: ["v1.0", "stable"]
       image: {
         name: "vllm:0.9.1"
         architecture: "x86_64"
       }
-      runtimeVariant: "vllm"
-      modelFolderId: "eeb8c377-15d2-4a16-8ed8-01215f3a5353"
-      modelMountDestination: "/models"
-      modelDefinitionPath: "model-definition.yaml"
-      scalingGroup: "gpu-cluster"
-      resourceSlots: "{\"cuda.device\": 2, \"mem\": \"48g\", \"cpu\": 8}"
-      resourceOpts: "{\"shmem\": \"64m\"}"
-      servingConfig: "{\"max_model_length\": 4096, \"parallelism\": {\"pp_size\": 1, \"tp_size\": 2}}"
-      environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1\"}"
-      extraMounts: [
-        {
-          vfolderId: "550e8400-e29b-41d4-a716-446655440001"
-          mountDestination: "/data"
-          type: "bind"
+      modelRuntimeConfig: {
+        runtimeVariant: VLLM
+        serviceConfig: {
+          maxModelLength: 4096
+          parallelism: {
+            ppSize: 1
+            tpSize: 2
+          }
         }
-      ]
-      desiredReplicas: 2
+        environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1\"}"
+      }
+      modelVFolderConfig: {
+        vfolderId: "eeb8c377-15d2-4a16-8ed8-01215f3a5353"
+        mountDestination: "/models"
+        definitionPath: "model-definition.yaml"
+        mounts: [
+          {
+            vfolderId: "550e8400-e29b-41d4-a716-446655440001"
+            destination: "/data"
+            type: BIND
+            permission: READ_ONLY
+          }
+        ]
+      }
+      resourceConfig: {
+        resourceSlots: "{\"cuda.device\": 2, \"mem\": \"48g\", \"cpu\": 8}"
+        resourceOpts: "{\"shmem\": \"64m\"}"
+      }
     }
   }) {
-    success
-    message
     deployment {
       id
       name
       endpointUrl
       status
       tags
-      revisions(first: 1) {
-        edges {
-          node {
-            id
-            name
-            tag
-            status
-            replicas
-          }
-        }
+      revision {
+        id
+        name
+        tags
+        status
       }
     }
   }
@@ -616,48 +630,63 @@ mutation CreateExpertDeployment {
     project: "research-team-id"
     openToPublic: false
     tags: ["experimental", "falcon"]
-    clusterMode: "multi-node"
-    clusterSize: 3
-    redeploymentStrategy: {
-      type: CANARY
-      config: "{\"canaryPercentage\": 10, \"canaryDuration\": \"30m\", \"successThreshold\": 95}"
+    clusterConfig: {
+      clusterMode: MULTI_NODE
+      clusterSize: 3
     }
+    deploymentStrategy: {
+      type: CANARY
+      config: {
+        canaryPercentage: 10
+        canaryDuration: "30m"
+        successThreshold: 95
+      }
+    }
+    resourceGroup: "gpu-premium"
     initialRevision: {
       name: "baseline"
-      tag: "v1.0"
+      tags: ["v1.0", "baseline"]
       image: {
         name: "python-tcp-app:3.9-ubuntu20.04"
         architecture: "x86_64"
       }
-      runtimeVariant: "custom"
-      modelFolderId: "550e8400-e29b-41d4-a716-446655440000"
-      modelMountDestination: "/models"
-      modelDefinitionPath: "model-definition.yaml"
-      scalingGroup: "gpu-premium"
-      resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
-      resourceOpts: "{\"shmem\": \"128m\"}"
-      servingConfig: "{\"extra_cli_parameters\": \"--trust-remote-code --enable-lora --gpu-memory-utilization 0.95\"}"
-      environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\", \"HF_TOKEN\": \"hf_xxx\"}"
-      extraMounts: [
-        {
-          vfolderId: "7a83e195-7410-4768-a338-a949cef6be83"
-          mountDestination: "/home/work/datasets"
-          type: "bind"
+      modelRuntimeConfig: {
+        runtimeVariant: CUSTOM
+        serviceConfig: {
+          extraCliParameters: "--trust-remote-code --enable-lora --gpu-memory-utilization 0.95"
         }
-      ]
-      desiredReplicas: 4
+        environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\", \"HF_TOKEN\": \"hf_xxx\"}"
+      }
+      modelVFolderConfig: {
+        vfolderId: "550e8400-e29b-41d4-a716-446655440000"
+        mountDestination: "/models"
+        definitionPath: "model-definition.yaml"
+        mounts: [
+          {
+            vfolderId: "7a83e195-7410-4768-a338-a949cef6be83"
+            destination: "/home/work/datasets"
+            type: BIND
+            permission: READ_WRITE
+          }
+        ]
+      }
+      resourceConfig: {
+        resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
+        resourceOpts: "{\"shmem\": \"128m\"}"
+      }
     }
   }) {
-    success
     deployment {
       id
       name
       endpointUrl
       preferredDomainName
-      clusterMode
-      clusterSize
       tags
-      redeploymentStrategy {
+      clusterConfig {
+        clusterMode
+        clusterSize
+      }
+      deploymentStrategy {
         type
         config
       }
@@ -670,110 +699,111 @@ mutation CreateExpertDeployment {
 
 ```graphql
 mutation CreateNewRevision {
-  createModelServingRevision(
+  createModelRevision(input: {
     deploymentId: "deployment-uuid"
-    input: {
-      name: "optimized-version"
-      tag: "v2.0"
-      image: {
-        name: "vllm:0.9.2"
-        architecture: "x86_64"
+    name: "optimized-version"
+    tags: ["v2.0", "optimized"]
+    image: {
+      name: "vllm:0.9.2"
+      architecture: "x86_64"
+    }
+    modelRuntimeConfig: {
+      runtimeVariant: VLLM
+      serviceConfig: {
+        maxModelLength: 8192
+        parallelism: {
+          ppSize: 2
+          tpSize: 4
+        }
+        extraCliParameters: "--enable-lora"
       }
-      runtimeVariant: "vllm"
-      modelFolderId: "550e8400-e29b-41d4-a716-446655440000"
-      modelMountDestination: "/models"
-      modelDefinitionPath: "model-definition.yaml"
+      environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\"}"
+    }
+    modelVFolderConfig: {
+      vfolderId: "550e8400-e29b-41d4-a716-446655440000"
+      mountDestination: "/models"
+      definitionPath: "model-definition.yaml"
+      mounts: []
+    }
+    resourceConfig: {
       resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
       resourceOpts: "{\"shmem\": \"128m\"}"
-      servingConfig: "{\"max_model_length\": 8192, \"parallelism\": {\"pp_size\": 2, \"tp_size\": 4}, \"extra_cli_parameters\": \"--enable-lora\"}"
-      environ: "{\"CUDA_VISIBLE_DEVICES\": \"0,1,2,3\"}"
-      extraMounts: []
-      desiredReplicas: 4
     }
-  ) {
-    success
+  }) {
     revision {
       id
       name
-      tag
+      tags
       status
-      deployment {
-        id
-        name
-      }
+      createdAt
     }
   }
 }
 ```
 
-### 4. Managing Traffic Distribution Between Revisions
+### 4. Updating Deployment Configuration
 
 ```graphql
-mutation UpdateTrafficRatio {
-  updateRevisionTrafficRatio(
-    deploymentId: "deployment-uuid"
-    trafficDistribution: [
-      { revisionId: "stable-revision-id", ratio: 0.8 }
-      { revisionId: "canary-revision-id", ratio: 0.2 }
-    ]
-  ) {
-    success
-    affectedRevisions {
-      id
-      name
-      tag
-      trafficRatio
-      replicas
-      status
-    }
-  }
-}
-```
-
-### 5. Scaling a Revision
-
-```graphql
-mutation ScaleRevision {
-  scaleRevision(
-    revisionId: "revision-uuid"
-    replicas: 6
-  ) {
-    success
-    revision {
-      id
-      name
-      tag
-      desiredReplicas
-      replicas
-      status
-      resourceSlots
-    }
-  }
-}
-```
-
-### 6. Update Redeployment Configuration
-
-```graphql
-mutation UpdateRedeploymentStrategy {
-  updateModelDeployment(
+mutation UpdateDeployment {
+  updateModelDeployment(input: {
     id: "deployment-uuid"
-    input: {
-      redeploymentStrategy: {
-        type: ROLLING
-        config: "{\"maxSurge\": 2, \"maxUnavailable\": 1}"
+    openToPublic: true
+    tags: ["production", "llm", "updated"]
+    deploymentStrategy: {
+      type: BLUE_GREEN
+      config: {
+        autoPromotionEnabled: true
+        terminationWaitTime: 300
       }
     }
-  ) {
-    success
+  }) {
     deployment {
       id
       name
-      redeploymentStrategy {
+      openToPublic
+      tags
+      deploymentStrategy {
         type
         config
       }
     }
+  }
+}
+```
+
+### 5. Switching Active Revision
+
+```graphql
+mutation SwitchActiveRevision {
+  updateModelDeployment(input: {
+    id: "deployment-uuid"
+    activeRevisionId: "new-revision-uuid"
+  }) {
+    deployment {
+      id
+      name
+      revision {
+        id
+        name
+        tags
+        status
+      }
+      revisionHistory {
+        id
+        name
+        tags
+      }
+    }
+  }
+}
+```
+
+### 6. Deleting a Deployment
+
+```graphql
+mutation DeleteDeployment {
+  deleteModelServingDeployment(id: "deployment-uuid") {
+    deletedId
   }
 }
 ```
