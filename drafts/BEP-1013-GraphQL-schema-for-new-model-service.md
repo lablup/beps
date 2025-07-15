@@ -93,7 +93,7 @@ type ReplicaManagement {
 
 type ModelReplica {
     name: String!
-    revision: ModelRevision! # 1:1
+    revision: ModelRevision!
 }
 
 union StrategyConfig = RollingConfig | BlueGreenConfig | CanaryConfig
