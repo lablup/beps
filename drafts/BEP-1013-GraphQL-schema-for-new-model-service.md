@@ -199,8 +199,13 @@ A revision represents a specific version of a model service. It contains session
 
 #### Resource and Runtime Configuration
 - `resourceConfig`: Resource requirements and additional options
-    - `resourceSlots`: Required resource slot information (e.g., {"cuda.device": 2, "mem": "48g", "cpu": 8})
+    - `resourceSlots`: Required resource slot information 
+        - `cpu`
+        - `mem`
+        - `extra`
     - `resourceOpts`: Additional resource options (e.g., {"shmem": "64m"})
+        - `shmem`
+        - `extra`
     - `resourceGroup`: resource group for revision
 - `ModelRuntimeConfig`: Runtime type and service configuration
     - `runtimeVariant`: Runtime type (VLLM, SGLANG, NVIDIA, MOJO, etc.)
@@ -259,10 +264,21 @@ type ModelVFolderConfig {
     definitionPath: String!
 }
 
+type ResourceSlots {
+    cpu: Int!
+    mem: String!
+    extra: JSONString
+}
+
+type ResourceOpts {
+    shmem: String
+    extra: JSONString
+}
+
 type ResourceConfig {
     resourceGroup: ResourceGroup!
-    resourceSlots: JSONString!
-    resourceOpts: JSONString
+    resourceSlots: ResourceSlots!
+    resourceOpts: ResourceOpts
 }
 
 union ServiceConfig = VLLMServiceConfig | SGLANGServiceConfig | NVIDIAServiceConfig | MOJOServiceConfig | CustomServiceConfig
@@ -355,8 +371,13 @@ Fields required for creating a new revision:
 - `mounts`(optional): Additional volume mounts
 - `resourceConfig`: Resource configuration
     - `resourceGroup`: Resource group for deployment 
-    - `resourceSlots`: Resource requirements (JSON)
-    - `resourceOpts`(optional): Additional resource options (JSON)
+    - `resourceSlots`: Resource requirements
+        - `cpu`
+        - `mem`
+        - `extra`
+    - `resourceOpts`(optional): Additional resource options
+        - `shmem`
+        - `extra`
 
 
 ### 1. Get Deployment Details
@@ -495,9 +516,16 @@ query GetRevisionDetails {
     status
     
     resourceConfig {
-        resourceGroup
-        resourceSlots
-        resourceOpts
+        resourceGroup {
+            name
+        }
+        resourceSlots {
+            cpu
+            mem
+        }
+        resourceOpts {
+            shmem
+        }
     }
     
     modelRuntimeConfig {
@@ -587,9 +615,16 @@ mutation CreateSimpleDeployment {
         }
     ]
     resourceConfig: {
-        resourceGroup: "gpu-cluster"
-        resourceSlots: "{\"cuda.device\": 2, \"mem\": \"48g\", \"cpu\": 8}"
-        resourceOpts: "{\"shmem\": \"64m\"}"
+        resourceGroup: {
+            name: "gpu-cluster"
+        }
+        resourceSlots: {
+            cpu: 8
+            mem: "8Gib"
+        }
+        resourceOpts: {
+            shmem: "64m"
+        }
       }
     }
     }) {
@@ -661,9 +696,16 @@ mutation CreateExpertDeployment {
                 }
                 ]
             resourceConfig: {
-                resourceGroup: "gpu-premium"
-                resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
-                resourceOpts: "{\"shmem\": \"128m\"}"
+                resourceGroup: {
+                    name: "gpu-premium"
+                }
+                resourceSlots: {
+                    mem: "96g"
+                    cpu: 16
+                }
+                resourceOpts: {
+                    shmem: "128m"
+                }
             }
         }
     }) {
@@ -717,9 +759,16 @@ mutation CreateNewRevision {
         }
         mounts: []
         resourceConfig: {
-            resourceGroup: "gpu-premium"
-            resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
-            resourceOpts: "{\"shmem\": \"128m\"}"
+            resourceGroup: {
+                name: "gpu-premium"
+            }
+            resourceSlots: {
+                mem: "96g" 
+                cpu: 16
+            }
+            resourceOpts: {
+                shmem: "128m"
+            }
         }
     }) {
         revision {
