@@ -393,14 +393,21 @@ query GetDeploymentDetails {
         status
     }
     
-    revisionHistory {
+    revisionHistory(
+    first: 10
+    orderBy: { field: CREATED_AT, direction: DESC }
+    ) {
         edges {
-             node {
+            node {
                 id
                 name
                 tags
                 createdAt
             }
+        }
+        pageInfo {
+            hasNextPage
+            endCursor
         }
     }
     
@@ -459,12 +466,28 @@ query GetDeploymentDetails {
 ### 2. List Deployments with Filters
 
 ```graphql
+enum OrderDirection {
+  ASC
+  DESC
+}
+
+enum DeploymentOrderField {
+  CREATED_AT
+  UPDATED_AT
+}
+
+input DeploymentOrderBy {
+  field: DeploymentOrderField!
+  direction: OrderDirection!
+}
+
 query ListDeployments {
     deployments(
         filter: {
-        status: ACTIVE
-        openToPublic: true
+            status: ACTIVE
+            openToPublic: true
         }
+        orderBy: { field: CREATED_AT, direction: DESC }
         limit: 20
         offset: 0
     ) {
