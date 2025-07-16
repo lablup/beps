@@ -241,7 +241,6 @@ type ClusterConfig {
 enum MountPermission {
     READ_ONLY
     READ_WRITE
-    RW_DELETE
 }
 
 type Mount {
