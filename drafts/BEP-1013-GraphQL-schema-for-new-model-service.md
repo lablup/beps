@@ -49,7 +49,7 @@ A deployment is the top-level concept that manages multiple revisions.
 - `openToPublic`: Whether accessible to public
 - `tags`: Tags for model service
 
-#### Replica Configuration
+#### Replica Management
 - `replicaManagement`:
     - `desiredReplicaCount`: Number of replicas to be achieved
     - `replicas`: List of `ModelReplica`s managed by deployment
