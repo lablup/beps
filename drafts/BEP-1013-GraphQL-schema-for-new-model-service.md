@@ -50,9 +50,10 @@ A deployment is the top-level concept that manages multiple revisions.
 - `tags`: Tags for model service
 
 #### Replica Configuration
-- `replica`:
+- `replicaManagement`:
     - `desiredReplicaCount`: Number of replicas to be achieved
-    - `replicas`: List of `ModelReplica`s managed by deployment 
+    - `replicas`: List of `ModelReplica`s managed by deployment
+    - `routings`: Routing information of each replica
 
 #### Deployment Strategy
 - `deploymentStrategy`
@@ -106,6 +107,7 @@ type ReplicaManagement {
 type ModelReplica {
     name: String!
     revision: ModelRevision!
+    routings(first: Int, after: String): RoutingConnection!
 }
 
 enum DeploymentStrategyType {
@@ -133,7 +135,7 @@ type ModelDeployment {
     revision: ModelRevision
     revisionHistory: [ModelRevision!]!
     
-    replicaConfig: ReplicaManagement!
+    replicaManagement: ReplicaManagement!
     clusterConfig: ClusterConfig!
 
     deploymentStrategy: DeploymentStrategy!
@@ -225,7 +227,6 @@ A revision represents a specific version of a model service. Revision is immutab
 
 #### Relationships
 - `image`: Container image information used
-- `routings`: Routing information for this revision
 
 #### Metadata
 - `errorData`: Error information if failed
@@ -286,7 +287,6 @@ type ModelRevision {
  
     # Relationships
     image: Image!
-    routings(first: Int, after: String): RoutingConnection!
     
     # Error and Metadata
     errorData: JSONString
@@ -389,13 +389,21 @@ query GetDeploymentDetails {
         createdAt
     }
     
-    replicaConfig {
+    replicaManagement {
         desiredReplicaCount
         replicas {
             name
             revision {
-            id
-            name
+                id
+                name
+            }
+            routings(first: 10) {
+                edges {
+                    node {
+                        id
+                        status
+                    }
+                }
             }
         }
         autoScalingRules {
@@ -468,10 +476,15 @@ query ListDeployments {
             size
         }
         
-        replicaConfig {
+        replicaManagement {
             desiredReplicaCount
             replicas {
                 name
+            }
+            autoScalingRules {
+                id
+                metricType
+                threshold
             }
         }
     }
@@ -517,15 +530,6 @@ query GetRevisionDetails {
     image {
         name
         architecture
-    }
-    
-    routings(first: 10) {
-        edges {
-            node {
-            id
-            status
-            }
-        }
     }
     
     errorData
