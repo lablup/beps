@@ -248,11 +248,6 @@ enum MountPermission {
     RW_DELETE
 }
 
-enum RevisionStatus {
-    ACTIVE
-    INACTIVE
-}
-
 type Mount {
     vfolderId: ID!
     destination: String!
@@ -283,7 +278,6 @@ type ModelRevision {
     id: ID!
     name: String
     tags: [String!]!
-    status: RevisionStatus!
 
     resourceConfig: ResourceConfig!
     modelRuntimeConfig: ModelRuntimeConfig!
