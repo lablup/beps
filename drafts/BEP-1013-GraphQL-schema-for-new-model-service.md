@@ -22,13 +22,13 @@ The GraphQL schema introduces two primary entities and their supporting types to
    - Active revision and revision history
    - Deployment strategy (Rolling, Blue-Green, Canary)
    - Public endpoint configuration and custom domain
-   - Cluster configuration and resource groups
    - Domain and project associations
    - Replica management with auto-scaling rules
 
 2. **ModelRevision**: Represents an immutable version of a model within a deployment. It handles:
    - Container image and runtime configuration
    - Model storage and mounting configuration
+   - Cluster configuration and resource groups
    - Resource requirements and runtime variant
    - Service-specific configurations
    - Additional volume mounts
@@ -64,18 +64,12 @@ A deployment is the top-level concept that manages multiple revisions.
 - `revision`: Current active ModelRevision that deployment references
 - `revisionHistory`: List of previous ModelRevisions deployment referenced
 
-#### Cluster Configuration
-- `clusterConfig`:
-    - `mode`: Cluster mode ('single-node' or 'multi-node')
-    - `size`: Number of nodes in cluster
-
 #### Relationship Fields
 - `domain`: Backend.AI domain
 - `project`: Owning project (group)
 - `createdUser`: User who created the deployment
 - `revisions`: All revisions belonging to this deployment
 - `accessTokens`: Access Tokens for endpoint url
-- `resourceGroup`: Resource Group for deployment
 
 #### Metadata
 - `createdAt`: Creation timestamp
@@ -86,16 +80,6 @@ A deployment is the top-level concept that manages multiple revisions.
 enum DeploymentStatus {
     INACTIVE
     ACTIVE
-}
-
-enum ClusterMode {
-    SINGLE_NODE
-    MULTI_NODE
-}
-
-type ClusterConfig {
-    mode: ClusterMode!
-    size: Int!
 }
 
 type ReplicaManagement {
@@ -136,7 +120,6 @@ type ModelDeployment {
     revisionHistory: [ModelRevision!]!
     
     replicaManagement: ReplicaManagement!
-    clusterConfig: ClusterConfig!
 
     deploymentStrategy: DeploymentStrategy!
 
@@ -201,7 +184,7 @@ type Mutation {
 
 ### ModelRevision
 
-A revision represents a specific version of a model service. Revision is immutable component. If you want to update certain value of revision, user must publish new revision
+A revision represents a specific version of a model service. It contains session launch configs which is immutable. If you want to update certain value of revision, user must publish new revision
 
 #### Basic Fields
 - `id`: Unique identifier
@@ -209,10 +192,16 @@ A revision represents a specific version of a model service. Revision is immutab
 - `tags`: List of revision tags
 - `status`: Revision status (ACTIVE, INACTIVE)
 
+#### Cluster Configuration
+- `clusterConfig`:
+    - `mode`: Cluster mode ('single-node' or 'multi-node')
+    - `size`: Number of nodes in cluster
+
 #### Resource and Runtime Configuration
 - `resourceConfig`: Resource requirements and additional options
     - `resourceSlots`: Required resource slot information (e.g., {"cuda.device": 2, "mem": "48g", "cpu": 8})
     - `resourceOpts`: Additional resource options (e.g., {"shmem": "64m"})
+    - `resourceGroup`: resource group for revision
 - `ModelRuntimeConfig`: Runtime type and service configuration
     - `runtimeVariant`: Runtime type (VLLM, SGLANG, NVIDIA, MOJO, etc.)
     - `serviceConfig`: Service-specific configuration (e.g., for vLLM: max_model_length, parallelism, etc.)
@@ -224,8 +213,6 @@ A revision represents a specific version of a model service. Revision is immutab
     - `mountDestination`: Mount path inside the container (default: /models)
     - `definitionPath`: Model definition file path (default: model-definition.yaml)
 - `mounts`: List of additional volume mounts (each item: vfolderId, destination, type, permission)
-
-#### Relationships
 - `image`: Container image information used
 
 #### Metadata
@@ -235,6 +222,16 @@ A revision represents a specific version of a model service. Revision is immutab
 #### Schema
 ```graphql
 scalar JSONString
+
+enum ClusterMode {
+    SINGLE_NODE
+    MULTI_NODE
+}
+
+type ClusterConfig {
+    mode: ClusterMode!
+    size: Int!
+}
 
 enum RuntimeVariant {
     VLLM,
@@ -263,6 +260,7 @@ type ModelVFolderConfig {
 }
 
 type ResourceConfig {
+    resourceGroup: ResourceGroup!
     resourceSlots: JSONString!
     resourceOpts: JSONString
 }
@@ -280,12 +278,12 @@ type ModelRevision {
     name: String
     tags: [String!]!
 
+    clusterConfig: ClusterConfig!
     resourceConfig: ResourceConfig!
     modelRuntimeConfig: ModelRuntimeConfig!
     modelVFolderConfig: ModelVFolderConfig!
     mounts: [Mount!]!
  
-    # Relationships
     image: Image!
     
     # Error and Metadata
@@ -338,7 +336,6 @@ Fields required for creating a new deployment:
   - `type`: ROLLING, BLUE_GREEN, or CANARY
   - `config`: Strategy-specific configuration
 - `initialRevision`: Initial revision configuration
-- `resourceGroup`: Resource group for deployment
 
 ### CreateModelRevisionInput
 Fields required for creating a new revision:
@@ -357,8 +354,9 @@ Fields required for creating a new revision:
   - `definitionPath`: Model definition file path
 - `mounts`(optional): Additional volume mounts
 - `resourceConfig`: Resource configuration
-  - `resourceSlots`: Resource requirements (JSON)
-  - `resourceOpts`(optional): Additional resource options (JSON)
+    - `resourceGroup`: Resource group for deployment 
+    - `resourceSlots`: Resource requirements (JSON)
+    - `resourceOpts`(optional): Additional resource options (JSON)
 
 
 ### 1. Get Deployment Details
@@ -434,10 +432,6 @@ query GetDeploymentDetails {
         email
     }
     
-    resourceGroup {
-        name
-    }
-    
     createdAt
     updatedAt
   }
@@ -501,8 +495,9 @@ query GetRevisionDetails {
     status
     
     resourceConfig {
-      resourceSlots
-      resourceOpts
+        resourceGroup
+        resourceSlots
+        resourceOpts
     }
     
     modelRuntimeConfig {
@@ -560,7 +555,6 @@ mutation CreateSimpleDeployment {
             maxUnavailable: 0
         }
     }
-    resourceGroup: "gpu-cluster"
     initialRevision: {
         name: "initial"
         tags: ["v1.0", "stable"]
@@ -593,6 +587,7 @@ mutation CreateSimpleDeployment {
         }
     ]
     resourceConfig: {
+        resourceGroup: "gpu-cluster"
         resourceSlots: "{\"cuda.device\": 2, \"mem\": \"48g\", \"cpu\": 8}"
         resourceOpts: "{\"shmem\": \"64m\"}"
       }
@@ -638,7 +633,6 @@ mutation CreateExpertDeployment {
                 successThreshold: 95
             }
         }
-        resourceGroup: "gpu-premium"
         initialRevision: {
             name: "baseline"
             tags: ["v1.0", "baseline"]
@@ -667,6 +661,7 @@ mutation CreateExpertDeployment {
                 }
                 ]
             resourceConfig: {
+                resourceGroup: "gpu-premium"
                 resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
                 resourceOpts: "{\"shmem\": \"128m\"}"
             }
@@ -722,6 +717,7 @@ mutation CreateNewRevision {
         }
         mounts: []
         resourceConfig: {
+            resourceGroup: "gpu-premium"
             resourceSlots: "{\"cuda.device\": 4, \"mem\": \"96g\", \"cpu\": 16}"
             resourceOpts: "{\"shmem\": \"128m\"}"
         }
