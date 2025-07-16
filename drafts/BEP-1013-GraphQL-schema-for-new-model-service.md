@@ -238,13 +238,6 @@ type ClusterConfig {
     size: Int!
 }
 
-enum RuntimeVariant {
-    VLLM,
-    SGLANG,
-    NVIDIA
-    MOJO
-}
-
 enum MountPermission {
     READ_ONLY
     READ_WRITE
@@ -284,7 +277,7 @@ type ResourceConfig {
 union ServiceConfig = VLLMServiceConfig | SGLANGServiceConfig | NVIDIAServiceConfig | MOJOServiceConfig | CustomServiceConfig
 
 type ModelRuntimeConfig {
-    runtimeVariant: RuntimeVariant!
+    runtimeVariant: String!
     serviceConfig: ServiceConfig
     environ: JSONString
 }
@@ -591,7 +584,7 @@ mutation CreateSimpleDeployment {
             architecture: "x86_64"
         }
     modelRuntimeConfig: {
-        runtimeVariant: VLLM
+        runtimeVariant: "VLLM"
         serviceConfig: {
             maxModelLength: 4096
             parallelism: {
@@ -676,7 +669,7 @@ mutation CreateExpertDeployment {
                 architecture: "x86_64"
             }
             modelRuntimeConfig: {
-                runtimeVariant: CUSTOM
+                runtimeVariant: "CUSTOM"
                 serviceConfig: {
                 extraCliParameters: "--trust-remote-code --enable-lora --gpu-memory-utilization 0.95"
                 }
@@ -741,7 +734,7 @@ mutation CreateNewRevision {
             architecture: "x86_64"
         }
         modelRuntimeConfig: {
-            runtimeVariant: VLLM
+            runtimeVariant: "VLLM"
             serviceConfig: {
                 maxModelLength: 8192
                 parallelism: {
