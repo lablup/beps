@@ -317,7 +317,6 @@ type Subscription {
 ```graphql
 type Mutation {
     createModelRevision(input: CreateModelRevisionInput! ): CreateModelRevisionPayload!
-    deleteModelRevision(id: ID!): ID!
 }
 ```
 
