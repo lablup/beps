@@ -394,10 +394,14 @@ query GetDeploymentDetails {
     }
     
     revisionHistory {
-        id
-        name
-        tags
-        createdAt
+        edges {
+             node {
+                id
+                name
+                tags
+                createdAt
+            }
+        }
     }
     
     replicaManagement {
