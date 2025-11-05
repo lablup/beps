@@ -18,6 +18,3 @@ pyrightconfig.json
 # macOS specific
 .DS_Store
 ._.DS_Store
-
-# Serena specific
-.serena
