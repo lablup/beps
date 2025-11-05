@@ -898,3 +898,4 @@ When the template is updated, admins can choose to update all instances or keep 
 ## References
 
 - [BEP-1008: Backend.AI Role-Based Access Control (RBAC)](./BEP-1008-RBAC.md) - Technical implementation details and architecture
+- [BEP-1012 RBAC Design Decisions](../refs/BEP-1012-RBAC-design-decision.md) - Key design decisions made during specification development

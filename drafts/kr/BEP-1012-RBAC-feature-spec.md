@@ -898,3 +898,4 @@ Role 템플릿은 다양한 스코프에 걸쳐 인스턴스화할 수 있는 �
 ## 참고 자료
 
 - [BEP-1008: Backend.AI 역할 기반 접근 제어 (RBAC)](./BEP-1008-RBAC.md) - 기술 구현 세부사항 및 아키텍처
+- [BEP-1012 RBAC 설계 결정 사항](../refs/kr/BEP-1012-RBAC-design-decision.md) - 명세 개발 중 내린 주요 설계 결정
