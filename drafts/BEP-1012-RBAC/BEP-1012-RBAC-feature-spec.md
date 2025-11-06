@@ -71,11 +71,18 @@ The RBAC system will manage permissions for the following entity types:
 | VFolder | Virtual folders for data storage | Entity only |
 | Image | Container images for sessions | Entity only |
 | Model Service | Model serving deployments | Entity only |
+| Model Artifact | Trained model files and metadata | Entity only |
+| Agent | Agent nodes providing computing resources | Entity only |
+| Resource Group | Logical groups of agents | Entity only |
+| Storage Host | Storage backend hosts | Entity only |
+| App Config | Application configuration items | Entity only |
+| Notification | System notification messages (admin-only) | Entity only |
 | Domain | Administrative domain grouping | Entity & Scope |
 | Project | Project grouping within domains | Entity & Scope |
 | User | User accounts | Entity & Scope |
 | Role | Permission set definitions | Entity only |
 | Role Assignment | User-role mappings within specific scopes | Entity only |
+| {Entity}:assignment | Mappings for sharing specific entities with other users (e.g., vfolder:assignment, compute_session:assignment) | Entity only |
 
 **Note**: Domain, Project, and User serve dual roles as both manageable entities and permission scopes. Role defines what permissions are available, while Role Assignment maps users to roles within specific scopes.
 
@@ -88,7 +95,7 @@ All entity types support the same set of operations, providing consistency acros
 | **create** | Create new entities of this type |
 | **read** | View entity information and metadata |
 | **update** | Modify entity properties and settings |
-| **soft-delete** | Mark entity as deleted without removing data |
+| **soft-delete** | Mark entity as deleted without removing data (default deletion behavior) |
 | **hard-delete** | Permanently remove entity data |
 
 **Note on delete operations for Role and Role Assignment**:
@@ -118,69 +125,26 @@ To manage Role Assignments within a scope, users need the corresponding permissi
 
 ### Permission Delegation
 
-In the RBAC system, permission delegation is achieved through Role and Role Assignment management, eliminating the need for special "grant" operations.
+Permission delegation is achieved through Role and Role Assignment management.
 
-**How Permission Delegation Works**:
+**Process**:
 1. Create or identify a Role with the desired permissions
 2. Create a Role Assignment linking the target user to that Role
 3. The user immediately receives all permissions defined in the Role
 
-**Example**: To give User B read access to a VFolder:
-1. Create a Role with Object Permission for that VFolder (or use existing Role)
-2. Create a Role Assignment: User B → VFolder Reader Role
-3. User B can now read the VFolder
-
-**Scope Rules**:
-- Each Role is bound to a single scope at creation time, and additional scopes can be bound only when adding Object Permissions
-- Role Assignments can only be created by users with `create` permission for `role_assignment` entity type within that scope
-- Scope admins manage roles and assignments within their own scope only
-- Cross-scope sharing is enabled through Object Permissions, not through hierarchical delegation
-
-**Security Constraints**:
-
-To prevent privilege escalation, the RBAC system enforces strict constraints on Role Assignment creation:
-
-1. **Role Read Permission Required**: Creating a Role Assignment requires `read` permission for the target Role
-   - Users can only assign Roles they have permission to view
-   - This ensures users cannot blindly assign arbitrary Roles
-
-2. **Scope-Based Access Control**: Role read permissions are scope-bound
-   - Project Admin with `role:read` in Project-A scope can only read Roles bound to Project-A
-   - Project Admin cannot read Global-scope Roles or Roles from other projects
-   - This prevents Project Admins from assigning Global Admin or other cross-scope Roles
-
-3. **Combined Protection**: These two mechanisms together prevent privilege escalation
-   - Even if a Project Admin has `role_assignment:create` permission
-   - They cannot assign Global Admin role because:
-     - They lack `role:read` permission in Global scope
-     - They cannot discover or reference Global-scope Roles
-
-**Example - Why Project Admin Cannot Escalate**:
-```
-Project Admin (Project-A scope) has:
-- Permissions: role:read, role:create, role_assignment:create (all in Project-A scope)
-
-Attempting to assign Global Admin role:
-1. Project Admin tries to create Role Assignment: User X → Global Admin
-2. System checks: Does Project Admin have `role:read` for Global Admin?
-3. Global Admin is bound to Global scope
-4. Project Admin only has `role:read` in Project-A scope
-5. ❌ Permission denied - Cannot read Global Admin role
-6. ❌ Cannot create Role Assignment
-```
+**Security**: To prevent privilege escalation, creating a Role Assignment requires `read` permission for the target Role within the same scope. This ensures that Project Admins can only assign roles they can see in their scope, preventing them from assigning Global Admin or cross-scope roles.
 
 ### Permission Types
 
 The RBAC system provides two types of permissions:
 
-#### 1. Permission (Type-Level Permission)
+#### 1. Scoped Permission (Scope-Level Permission)
 
 Defines permissions for operations on an **entity type** within a specific scope.
 
 - Specifies: entity type (e.g., `vfolder`) + operation (e.g., `read`)
 - Applies to all entities of that type accessible within the scope
 - Example: `vfolder:read` permission allows reading all VFolders within the scope
-- Grouped within a Role's Permission Group, which is bound to a single scope
 
 #### 2. Object Permission (Instance-Level Permission)
 
@@ -209,33 +173,60 @@ Each Role in the RBAC system has the following structure:
 - **Source**: Indicates whether the role is system-generated or custom-created
 
 **Permission Components**:
-- **Permissions**: A collection of type-level permissions (entity type + operation) that apply within the Role's bound scope
-  - Internally grouped in a "Permission Group" representing the scope
+- **Scoped Permissions**: A collection of scope-level permissions (entity type + operation) that apply within the Role's bound scope
   - Example: `vfolder:read`, `compute_session:create`
 - **Object Permissions**: A collection of instance-level permissions (entity type + entity ID + operation)
   - Can reference entities from any scope, enabling cross-scope sharing
   - Example: `vfolder:abc-123:read`
 
-**Note**: The "Permission Group" is an internal structure that associates Permissions with the Role's scope. From a user perspective, a Role simply has a scope and a list of permissions.
+```mermaid
+graph LR
+    User -->|has| RoleAssignment
+    RoleAssignment -->|references| Role
+    Role -->|bound to| Scope
+    Role -->|contains| ScopedPermission[Scoped Permissions]
+    Role -->|contains| ObjectPermission[Object Permissions]
+    ScopedPermission -->|applies within| Scope
+    ObjectPermission -->|applies to| EntityInstance[Entity Instance]
+```
 
 ### Role Source
 
 Roles in the RBAC system have a source attribute indicating how they were created:
 
-| Role Source | Description | Management |
-|-------------|-------------|------------|
-| **system** | Automatically created by the system | Created when scopes are created; cannot be deleted |
-| **custom** | Manually created by administrators | Can be created, modified, and deleted by users with appropriate permissions |
+| Role Source | Description | Purpose | Management |
+|-------------|-------------|---------|------------|
+| **system** | Automatically created by the system | Provide default admin role when scope is created | Share lifecycle with scope; cannot be individually deleted |
+| **custom** | Manually created by administrators | Custom roles tailored to specific requirements | Can be created, modified, and deleted by users with appropriate permissions |
 
-#### System Roles
+#### System Sourced Roles
 
-When a new scope (Domain, Project, or User) is created, the system automatically creates an admin role for that scope:
+**Purpose**: System sourced roles are default roles automatically created when a scope is created. They ensure that each scope has a fundamental permission structure.
 
-- **Domain creation** → Domain Admin role (system sourced, bound to that domain scope)
-- **Project creation** → Project Admin role (system sourced, bound to that project scope)
-- **User creation** → User Owner role (system sourced, bound to that user scope)
+**Automatically Created System Sourced Roles**:
+- **Domain Admin**: Administrator role for domain scope
+- **Project Admin**: Administrator role for project scope
+- **User Owner**: Default role for user scope (for owned resources and shared resource access)
 
-System roles ensure that every scope has at least one administrator capable of managing resources within that scope.
+**Characteristics**:
+- Cannot be individually deleted as they form the fundamental infrastructure of the scope
+- Automatically deleted when the scope is deleted
+- Multiple users can be assigned to the same system sourced role (via Role Assignments)
+- **Multi-scope binding support**: Especially for User Owner Role, when other users share resources, their scopes are automatically added to the role
+
+#### Custom Sourced Roles
+
+**Purpose**: Custom sourced roles are manually created by administrators to tailor permissions to their organization's specific requirements. They enable fine-grained permission control and flexible access management.
+
+**Usage Examples**:
+- "Project-A-Admin": Role with administrative permissions for a specific project
+- "Department-Viewer": Role with read-only permissions for all resources in a specific department
+- "Cross-Project-Coordinator": Role with resource access across multiple projects
+
+**Characteristics**:
+- Freely created, modified, and deleted by administrators as needed
+- Can define permission sets optimized for specific scopes or organizational structures
+- Enable fine-grained resource access control using Object Permissions
 
 ### Role Assignment Entity
 
@@ -260,20 +251,7 @@ Role Assignment is a separate entity that maps users to roles within specific sc
 - Role Assignment: User Alice → "Project-A-User" role
 - Result: Alice has the permissions defined in "Project-A-User" role within Project A scope
 
-**Role Assignment Management**:
-
-Role Assignments can be managed by users with appropriate permissions within the scope:
-
-- **Create**: Users with `role_assignment:create` permission in the scope can create new Role Assignments
-- **Read**: Users with `role_assignment:read` permission can view Role Assignments within the scope
-- **Update**: Users with `role_assignment:update` permission can modify Role Assignment metadata (e.g., change state from inactive to active, update expiration time)
-- **Delete**: Users with `role_assignment:soft-delete` or `role_assignment:hard-delete` permissions can remove Role Assignments
-
-**Scope Administrators**: Users assigned to admin roles for a scope (e.g., Domain Admin, Project Admin) typically have all Role Assignment management permissions for that scope, allowing them to:
-- Assign roles to users within their scope
-- Revoke role assignments by soft-deleting or deactivating them
-- Reactivate soft-deleted or inactive Role Assignments
-- View all role assignments within their scope
+**Management**: Scope administrators (Domain Admin, Project Admin) typically have all Role Assignment management permissions for their scope, allowing them to assign roles, revoke assignments, and view all assignments within their scope.
 
 ### Scope Hierarchy
 
@@ -315,58 +293,6 @@ Examples:
   1. Multiple Role Assignments (one per scope)
   2. Object Permissions for specific resources in other scopes
 
-### Scope Deletion Policy
-
-When deleting a scope (Domain, Project, or User), the RBAC system enforces strict policies to prevent accidental data loss while providing flexibility when needed.
-
-**Default Behavior (Cascade Rejection)**:
-
-By default, the system rejects scope deletion if any dependent Roles or Role Assignments exist:
-
-- **Soft-delete scope**: System checks for Roles bound to this scope
-  - If Roles exist: Returns an error listing all affected Roles
-  - Admin must explicitly soft-delete or hard-delete Roles first
-  - This ensures administrators are aware of all permission structures before deletion
-
-- **Hard-delete scope**: System checks for Roles bound to this scope
-  - If Roles exist: Returns an error listing all affected Roles
-  - Admin must explicitly hard-delete all Roles and their Role Assignments first
-  - This prevents permanent loss of permission definitions without explicit action
-
-**Force Delete Option**:
-
-For administrative convenience and bulk operations, the system provides a force delete option:
-- **Hard-delete with force**: When enabled, automatically hard-deletes all dependent entities
-  - Automatically hard-deletes all Roles bound to the scope
-  - All Role Assignments for those Roles are also hard-deleted
-  - Irreversible - use with caution
-
-**System Role Protection**:
-
-System-generated Roles (Domain Admin, Project Admin, User Owner) follow the same deletion rules:
-- Cannot be individually deleted while the scope exists
-- Are automatically managed when the scope is deleted
-- When force delete is used, system roles are deleted along with the scope
-
-**Examples**:
-
-**Example 1: Safe deletion (default behavior)**
-1. Admin attempts to hard-delete Project-A
-2. System finds 3 Roles bound to project-A and 15 Role Assignments using those Roles
-3. System rejects the deletion with an error message listing all affected Roles
-4. Admin must either manually delete the Roles first or use force delete option
-
-**Example 2: Force deletion**
-1. Admin hard-deletes Project-A with force option enabled
-2. System automatically hard-deletes 15 Role Assignments, then 3 Roles, then the scope
-3. All entities are permanently removed
-
-**Best Practices**:
-- Review all Roles before deleting a scope
-- Use soft-delete for scopes that might be restored
-- Reserve force delete for cleanup operations and testing environments
-- Always verify in staging before force-deleting production scopes
-
 ### Administrative Safeguards
 
 The RBAC system includes safeguards to prevent accidental loss of administrative access while maintaining operational flexibility.
@@ -379,35 +305,9 @@ System sourced roles (Domain Admin, Project Admin, User Owner) are default admin
 
 System sourced roles cannot be individually deleted:
 
-1. **Individual Deletion Prohibited**: When attempting to soft-delete or hard-delete a system sourced role, the system returns an error
-   - Display message: "System sourced roles cannot be deleted individually. They will be automatically removed when the scope is deleted."
-   - Protection is enforced by checking if the Role's source attribute is 'system'
+1. **Individual Deletion Prohibited**: Attempting to delete a system sourced role returns an error. System sourced roles are removed only when their corresponding scope is deleted.
 
-2. **Removal Through Scope Deletion**: System sourced roles are removed only when their corresponding scope is deleted
-   - When a scope is deleted, all system sourced roles bound to that scope are automatically deleted
-   - Handled according to the rules in the "Scope Deletion Policy" section
-
-3. **Role Assignments Are Manageable**: While system sourced roles themselves cannot be deleted, Role Assignments for these roles can be created and removed normally
-   - Admins can be added or removed (by creating/deleting Role Assignments)
-   - Multiple users can be assigned to the same system sourced role
-
-**Exception Handling**:
-
-If you need to remove a system sourced role in special circumstances:
-- Contact your system administrator (Global Admin) for assistance
-- System administrators can take direct action at the database level or handle it through scope deletion
-
-**Audit Logging**:
-
-Attempts to delete system sourced roles are recorded in the audit log:
-- Records the user who attempted the deletion and the time
-- Records the Role information and reason for denial
-- Supports monitoring for unusual patterns
-
-**Best Practices**:
-- Maintain at least 2 active admin Role Assignments per critical scope
-- Create and manage additional admin roles using custom roles
-- Regularly audit admin access across scopes
+2. **Role Assignments Are Manageable**: While system sourced roles cannot be deleted, Role Assignments for these roles can be created and removed normally, allowing administrators to manage who has admin access.
 
 ### Resource Ownership
 
@@ -415,35 +315,25 @@ In the RBAC system, resource ownership is managed through automatic Role Assignm
 
 **Ownership Model**:
 
-When a user creates a resource (VFolder, Compute Session, Model Service, etc.), the system automatically:
-1. Creates or identifies a Role with full Object Permissions for that resource
-2. Creates a Role Assignment linking the creator to that Role
-3. The creator receives all permissions (create, read, update, delete) for the resource
+When a user creates a resource (VFolder, Compute Session, Model Service, etc.), the system automatically adds Object Permissions to the creator's "User Owner" System Sourced Role.
 
 **Example - VFolder Creation**:
 ```
 1. User A creates VFolder-X in Project-A
-2. System automatically:
-   a. Creates/finds Role with Object Permissions:
-      - vfolder:X:read
-      - vfolder:X:update
-      - vfolder:X:soft-delete
-      - vfolder:X:hard-delete
-   b. Creates Role Assignment: User A → VFolder-X-Owner Role
-3. User A now has full control over VFolder-X
+2. System automatically adds Object Permissions to User A's "User Owner" System Sourced Role:
+   - vfolder:X:read
+   - vfolder:X:update
+   - vfolder:X:soft-delete
+   - vfolder:X:hard-delete
+   - vfolder:assignment:X:create (permission to share with other users)
+   - vfolder:assignment:X:delete (permission to revoke shares)
+3. User A now has full control and sharing permissions over VFolder-X
 ```
 
-**Important Implications**:
-
-1. **No Special Owner Status**: Owners are just users with a Role Assignment granting full permissions
-2. **Transferable Ownership**: Ownership can be transferred by creating a new Role Assignment for another user
-3. **Revocable Ownership**: If the creator's Role Assignment is deactivated, they lose access to their own resource
-4. **Self-Lockout Risk**: Users must be careful not to accidentally revoke their own access
-
-**Ownership Delegation**:
-- Resource creators can delegate specific permissions by creating additional Role Assignments
-- Multiple users can have "owner-like" permissions through separate Role Assignments
-- No concept of a single "owner" - all access is controlled through Roles
+**Implications**:
+- Ownership is represented as Object Permissions in the "User Owner" System Sourced Role
+- Owned resources and shared resources are managed within the same Role
+- Resource creators delegate permissions by adding Object Permissions to other users' System Sourced Roles
 
 **Scope-Level Resources**:
 
@@ -481,274 +371,94 @@ When Domain-level VFolders are implemented:
 
 ### Permission Conflict Resolution
 
-When a user has multiple Role Assignments that grant different permissions for the same resource, the RBAC system resolves conflicts using a **union (additive) model**.
+When a user has multiple Role Assignments that grant different permissions for the same resource, the RBAC system uses a **union (additive) model**:
 
-**Resolution Rules**:
+- All permissions from all Role Assignments are combined
+- If any Role grants a permission, the user has that permission
+- There is no "deny" mechanism
 
-1. **Union of Permissions**: All permissions from all Role Assignments are combined
-2. **No Deny Mechanism**: There is no explicit "deny" permission in this RBAC system
-3. **Most Permissive Wins**: If any Role grants a permission, the user has that permission
+**Example**: User B with Role A (read) and Role B (read + update) has both read and update permissions.
 
-**Example**:
+```mermaid
+graph TD
+    User[User B] -->|has| RA1[Role Assignment 1]
+    User -->|has| RA2[Role Assignment 2]
+    RA1 -->|references| RoleA[Role A: read]
+    RA2 -->|references| RoleB[Role B: read + update]
+    RoleA -->|grants| P1[Permission: read]
+    RoleB -->|grants| P2[Permission: read]
+    RoleB -->|grants| P3[Permission: update]
+    P1 -.union.-> EP[Effective Permissions:<br/>read + update]
+    P2 -.union.-> EP
+    P3 -.union.-> EP
 ```
-User B has two Role Assignments:
-- Role A: vfolder:X:read
-- Role B: vfolder:X:read, vfolder:X:update
 
-Effective permissions for User B on VFolder-X:
-- vfolder:X:read ✅ (from both roles)
-- vfolder:X:update ✅ (from Role B)
-
-Result: User B can both read and update VFolder-X
-```
-
-**Implications**:
-
-- **Additive Only**: Adding more Role Assignments can only grant more permissions, never fewer
-- **No Revocation by Addition**: You cannot restrict access by adding a "deny" role
-- **Explicit Deactivation Required**: To revoke permissions, you must deactivate the Role Assignment granting them
-- **Audit Complexity**: To understand a user's permissions, you must examine all their Role Assignments
-
-**Best Practices**:
-- Keep Role Assignments minimal and well-documented
-- Regularly audit users' effective permissions
-- Use descriptive Role names to indicate permission levels
-- Avoid creating overlapping Roles with conflicting intents
+**Note**: To revoke permissions, you must deactivate or delete the Role Assignment granting them.
 
 ### Key Use Cases
 
 #### 1. VFolder Sharing
 
-**Scenario**: User A wants to share a VFolder with User B for collaboration.
+When User A shares their VFolder with User B:
 
-**Method 1: Using Share/Invite API (Backward Compatibility)**
+**Sharing Process**:
+1. User A creates a `vfolder:assignment` entity
+2. System automatically adds Object Permissions to User B's "User Owner" System Sourced Role:
+   - `vfolder:{folder_id}:read`
+   - `vfolder:{folder_id}:update` (if write permission included)
+3. User B can immediately access the VFolder
 
-This convenience API maintains compatibility with existing VFolder invitation workflows. Internally, it uses the RBAC system (Method 2) but provides a simpler interface.
+```mermaid
+sequenceDiagram
+    participant UserA as User A
+    participant System
+    participant Assignment as vfolder:assignment
+    participant RoleB as User B's User Owner Role
+    participant UserB as User B
 
-**Flow**:
-1. User A calls the VFolder share API with target user and desired permissions
-2. System automatically:
-   - Finds or creates a Role with Object Permission for that VFolder
-   - Creates a Role Assignment linking User B to that Role
-3. User B can now read and modify the VFolder contents
-4. User A can revoke by updating the Role Assignment state to inactive
+    UserA->>System: Create vfolder:assignment
+    Note over System,Assignment: Target: User B, VFolder: X
+    System->>Assignment: Create assignment entity
+    System->>RoleB: Add Object Permissions<br/>(vfolder:X:read, update)
+    System->>UserB: Grant access
+    UserB->>System: Access VFolder X ✓
+```
 
-**Implementation Note**: The share/invite API is a thin wrapper around RBAC operations. All shares are stored as Role and Role Assignment entities.
+**Revoking Share**:
+- User A deletes the `vfolder:assignment` entity
+- System automatically removes the VFolder's Object Permissions from User B's System Sourced Role
 
-**Deprecation Plan**: This API is maintained for backward compatibility with existing clients and UI. New integrations should use Method 2 (Direct RBAC) for greater flexibility. The share/invite API may be deprecated in future major versions once all clients migrate to RBAC-based interfaces.
-
-**Method 2: Using Role and Role Assignment (Direct RBAC - Recommended)**
-
-This method uses the core RBAC primitives directly and is the recommended approach for new implementations:
-
-**Flow**:
-1. User A checks if a suitable Role exists for the VFolder:
-   - Search for Role with `vfolder:{id}:read` and `vfolder:{id}:update` Object Permissions
-2. If not found, User A creates a new Role:
-   - Bound to User A's scope
-   - Add Object Permissions: `vfolder:{id}:read`, `vfolder:{id}:update`
-3. User A creates a Role Assignment:
-   - Link User B to the VFolder Reader Role
-4. User B can now read and modify the VFolder contents
-5. To revoke, User A updates the Role Assignment state to inactive
-
-**Advantages of Method 2**:
-- Full RBAC flexibility (can combine multiple Object Permissions in one Role)
-- Consistent with other resource types
-- Supports advanced scenarios (multiple users, complex permission sets)
-- Future-proof as RBAC system evolves
+**Backward Compatibility**: Existing share/invite API continues to work, internally using this RBAC mechanism.
 
 #### 2. Session Access Control
 
-**Scenario**: Project Admin wants to allow a team member to access specific compute sessions.
+Project Admins can grant access to specific compute sessions by:
+- Adding Object Permissions to team members' System Sourced Roles
+- Or creating a Custom Role in project scope with Role Assignment
 
-**Flow**:
-1. Project Admin has `create` permission for `role` and `role_assignment` entity types in project scope
-2. Project Admin creates a Role (or uses existing) with Object Permissions:
-   - `compute_session:{session_id_1}:read`
-   - `compute_session:{session_id_2}:read`
-3. Project Admin creates a Role Assignment linking the team member to this Role
-4. Team member can view details and outputs of those specific sessions
-5. Team member cannot create or delete sessions without additional Permissions in their Role
+#### 3. Custom Role Creation
 
-#### 3. Project Administration
-
-**Scenario**: Domain Admin creates a new project and assigns a Project Admin.
-
-**Flow**:
-1. Domain Admin creates a new Project
-2. System automatically creates a Project Admin role (system sourced) for the project scope
-3. Domain Admin creates a Role Assignment linking a user to the Project Admin role
-4. Project Admin can now manage all resources within the project scope
-5. Project Admin can create custom Roles and Role Assignments for project members
-
-#### 4. Assigning Roles to Project Members
-
-**Scenario**: Project Admin wants to grant a team member specific permissions by assigning them a role.
-
-**Flow**:
-1. Project Admin has `create` permission for `role_assignment` entity type in project scope
-2. Project Admin identifies the appropriate Role (e.g., "Project User" system role)
-3. Project Admin creates a Role Assignment linking the team member to the "Project User" role
-4. The team member immediately receives all Permissions defined in the "Project User" role
-5. Project Admin can later revoke access by updating the Role Assignment state to inactive
-
-#### 5. Custom Role Creation and Assignment
-
-**Scenario**: Project Admin wants to create a "Project-A-ML-Researcher" role with specific permissions and assign it to team members.
-
-**Flow**:
-1. Project Admin has `create` permission for both `role` and `role_assignment` entity types in project scope
-2. Project Admin creates a custom role named "Project-A-ML-Researcher":
-   - Bound to Project A scope
-   - Add Permissions: `compute_session:create`, `compute_session:read`
-   - Add Permissions: `vfolder:read`, `image:read`
-3. Project Admin creates Role Assignments linking specific team members to the "Project-A-ML-Researcher" role
-4. Team members can now:
-   - Create and read compute sessions within Project A
-   - Read VFolders and images within Project A
-   - Cannot modify or delete resources without additional Permissions
-5. Project Admin can update the role's Permissions (add/remove), and changes automatically apply to all users assigned this role
+Project Admins can create custom roles tailored to their needs:
+- Define a Custom Role with necessary Scoped Permissions and Object Permissions
+- Assign the role to team members via Role Assignments
+- Permission updates automatically apply to all users with that role
 
 ### Migration Strategy
 
-#### User Role Mapping
+Existing permissions will be migrated to the RBAC system:
 
-Existing user roles will be automatically migrated to the RBAC system:
+**Migration Targets**:
+- User roles (superadmin, user) → RBAC Roles and Role Assignments
+- Project memberships → Role Assignments in project scopes
+- Resource ownership → Object Permissions in System Sourced Roles
+- VFolder invitations → Object Permissions and `vfolder:assignment` entities
 
-| Current Role | Target RBAC Role | Scope |
-|--------------|------------------|-------|
-| superadmin | Global Admin | Global scope |
-| user | User Owner | User's own scope |
-
-#### Project Membership Mapping
-
-Users associated with projects will receive appropriate project roles:
-
-| Current Status | Target RBAC Role | Scope |
-|----------------|------------------|-------|
-| Project member (superadmin) | Project Admin | Project scope |
-| Project member (user) | Project User | Project scope |
-
-**Multiple Project Memberships**:
-- A user who is a member of 100 projects will receive 100 separate Project User (or Project Admin) Role Assignments
-- Each Role Assignment is bound to the respective project scope
-- This ensures users have appropriate permissions in each project they participate in
-
-**Project User role** (system sourced, bound to project scope) will have:
-- Permissions: `compute_session:create`, `compute_session:read`
-- Permissions: `vfolder:read`, `image:read`, `model_service:read`
-- Object Permissions can be added by Project Admin for specific resources
-
-#### Resource Ownership Migration
-
-For each existing resource (VFolder, Compute Session, Model Service, etc.), the migration process will:
-
-1. **Identify Resource Creator**: Determine the user who created the resource
-2. **Create Owner Role**: Create or find a Role with full Object Permissions for that resource
-   - Object Permissions: `{resource_type}:{resource_id}:read`, `update`, `soft-delete`, `hard-delete`
-3. **Create Role Assignment**: Link the creator to the owner Role
-4. **Preserve Access**: Ensures creators retain full control over their resources after migration
-
-#### VFolder Invitation Migration
-
-The existing VFolder invitation system will be migrated to Role and Role Assignment:
-
-1. For each VFolder invitation:
-   - Create or find a Role with Object Permissions for that VFolder
-   - Create a Role Assignment linking the invited user to that Role
-2. Invitation permissions mapping:
-   - `read` permission → `vfolder:{id}:read` Object Permission
-   - `write` permission → `vfolder:{id}:read` + `vfolder:{id}:update` Object Permissions
-3. Maintain the share/invite API as a convenience layer over the RBAC system
-4. Existing permission checks replaced with unified RBAC checks
-
-**Backward Compatibility**:
-- The VFolder share/invite API continues to work, internally using Role + Role Assignment
-- Existing UI for VFolder sharing remains unchanged
-- Users gradually encouraged to use direct RBAC features for more flexibility
-
-#### Migration Process
-
-1. **Pre-migration Analysis**: Audit existing permissions and user roles
-2. **Schema Deployment**: Create RBAC tables alongside existing tables
-3. **Data Migration**: Transform existing permission data to RBAC format
-4. **Validation**: Verify migrated permissions match original behavior
-5. **Dual-Write Phase**: Code migrated to write to both old and new permission systems
-   - All permission changes are written to both legacy tables and RBAC tables
-   - Ensures consistency between systems during transition
-   - Duration: Until validation is complete and all subsystems are migrated
-6. **RBAC Read Switch**: Switch permission checks to read from RBAC system
-   - Continue dual-write to maintain legacy system compatibility
-   - Monitor for permission denials and unexpected behaviors
-7. **Legacy System Deactivation**: Stop writing to legacy permission tables
-8. **Legacy Cleanup**: Remove old permission tables and code after successful migration
-
-**Important Notes**:
-- **No Rollback Strategy**: The dual-write approach ensures forward progress only
-  - Rolling back would require restoring legacy system while losing RBAC changes
-  - Instead, issues are fixed forward in the RBAC system
-  - Extensive testing in staging environments required before production migration
-- **Gradual Migration**: Different entity types can be migrated in phases
-  - Reduces risk by validating each entity type's migration independently
-  - Allows for iterative fixes and improvements
+**Approach**: Gradual migration by entity type with backward compatibility maintained throughout the transition.
 
 
-### Audit Log Coverage
+### Audit and Compliance
 
-All RBAC operations are recorded in the audit log:
-
-**Role Management**:
-- Role creation, modification, and deletion
-- Changes to role permissions (adding/removing Permissions and Object Permissions)
-- Role scope binding changes
-
-**Role Assignment Management**:
-- Role Assignment creation (who granted what role to whom, in which scope)
-- Role Assignment deletion (who revoked access)
-- Role Assignment state changes (active/inactive transitions)
-
-**Permission Checks**:
-- Access attempts (successful and denied)
-- Resource accessed and operation attempted
-- User identity and effective permissions at time of access
-- Roles that granted the permission (for successful access)
-
-**Administrative Actions**:
-- Scope creation and deletion
-- System role creation (automatic)
-- Permission policy changes
-
-### Audit Log Attributes
-
-Each audit log entry includes:
-
-- **Timestamp**: When the action occurred
-- **Actor**: User who performed the action
-- **Action Type**: Operation performed (e.g., `role_assignment.create`, `permission.check`)
-- **Target**: Entity affected (e.g., Role ID, User ID, Resource ID)
-- **Scope**: Where the action occurred
-- **Result**: Success or failure
-- **Details**: Additional context (permissions involved, reason for denial, etc.)
-
-### Compliance Support
-
-The audit log enables:
-
-- **Access Reviews**: Periodic review of who has access to what resources
-- **Anomaly Detection**: Identify unusual permission grant patterns
-- **Forensics**: Investigate security incidents by tracing permission changes
-- **Regulatory Compliance**: Demonstrate access control for compliance audits (SOC 2, ISO 27001, etc.)
-- **Accountability**: Track who granted or revoked permissions
-
-### Audit Log Query Capabilities
-
-Administrators can query audit logs to answer questions like:
-- Who has accessed resource X in the last 30 days?
-- When was user Y granted admin permissions?
-- What permissions does user Z currently have and how did they receive them?
-- Who granted role R to user U?
-- What permission denials occurred in project P?
+All RBAC operations are recorded in the audit log for compliance and security monitoring:
 
 ## Impacts to Users or Developers
 
@@ -775,87 +485,26 @@ Administrators can query audit logs to answer questions like:
 
 **Changes**:
 - Replace entity-specific permission code with RBAC API calls
-- Update GraphQL and REST APIs to support role and permission management
-- Implement RBAC checks in service layers for all operations
 - Add role and permission management interfaces
 
 ## Future Features
 
-The following features are planned for future implementation but not included in the initial RBAC release:
+The following features are planned for future implementation:
 
 ### 1. Temporary Role Assignments with Expiration
 
-**Current State**:
-In the initial implementation, Role Assignments are permanent until explicitly deactivated by updating their state.
-
-**Planned Enhancement**:
-
-**Expiration Time Support**:
+Support for time-limited access grants with automatic expiration:
 - Add `expires_at` attribute to Role Assignment
 - Automatically revoke permissions when expiration time is reached
-- Support for temporary access grants
-
-**Features**:
-- **Automatic Expiration**: Background process checks and deactivates expired Role Assignments
-- **Expiration Notifications**: Alert users before their access expires
-- **Renewal Mechanism**: Admins can extend expiration time without recreating Role Assignment
-- **Grace Period**: Optional grace period before hard deletion of expired assignments
-
-**Use Cases**:
-- Temporary contractor access to project resources
-- Time-limited trial memberships
-- Temporary privilege escalation for specific tasks
-- Scheduled access revocation for compliance
-
-**Example**:
-```
-Role Assignment:
-- User: Contractor Bob
-- Role: Project-A-Developer
-- expires_at: 2025-12-31 23:59:59
-- state: Active
-
-On 2026-01-01:
-- System automatically changes state to "expired"
-- Bob loses all permissions from this Role Assignment
-- Assignment record retained for audit purposes
-```
+- Use cases: temporary contractor access, time-limited trial memberships, scheduled access revocation
 
 ### 2. Role Templates
 
-**Concept**:
-Role Templates are predefined, reusable role definitions that can be instantiated across different scopes.
-
-**Features**:
-- **Template Library**: System-provided and custom templates
-- **Parameterized Roles**: Templates with placeholder values for scope and resources
-- **Instantiation**: Create new Roles from templates bound to specific scopes
-- **Versioning**: Track template versions and updates
-
-**Example Use Case**:
-```
-Template: "ML-Researcher"
-- Permissions: compute_session:create, compute_session:read
-- Permissions: vfolder:read, image:read
-
-Instantiation:
-- "Project-A-ML-Researcher" (from "ML-Researcher" template, bound to Project-A)
-- "Project-B-ML-Researcher" (from "ML-Researcher" template, bound to Project-B)
-
-When the template is updated, admins can choose to update all instances or keep them independent.
-```
-
-**Benefits**:
-- **Consistency**: Standardized roles across projects and domains
-- **Efficiency**: Quick role creation without manual permission configuration
-- **Governance**: Organization-wide role standards
-- **Maintenance**: Centralized updates to common role patterns
-
-**Implementation Considerations**:
-- Template catalog management UI
-- Template versioning and migration strategies
-- Permission inheritance vs. copying from templates
-- Template sharing across domains
+Predefined, reusable role definitions that can be instantiated across different scopes:
+- System-provided and custom templates for common role patterns
+- Quick role creation without manual permission configuration
+- Centralized updates to common role patterns
+- Organization-wide role standards and consistency
 
 ## References
 
