@@ -114,7 +114,7 @@ To manage Role Assignments within a scope, users need the corresponding permissi
   - Example: Permanently deleting files in a trashed VFolder
   - For Role: Removes the role definition (only allowed if no active Role Assignments reference it)
   - For Role Assignment: Permanently removes the assignment record
-  - Note: Database records may be retained for audit purposes
+  - Note: Database records may be retained for a certain period for audit purposes
 
 ### Permission Delegation
 
@@ -131,7 +131,7 @@ In the RBAC system, permission delegation is achieved through Role and Role Assi
 3. User B can now read the VFolder
 
 **Scope Rules**:
-- Each Role is bound to a single scope at creation time
+- Each Role is bound to a single scope at creation time, and additional scopes can be bound only when adding Object Permissions
 - Role Assignments can only be created by users with `create` permission for `role_assignment` entity type within that scope
 - Scope admins manage roles and assignments within their own scope only
 - Cross-scope sharing is enabled through Object Permissions, not through hierarchical delegation
@@ -193,7 +193,7 @@ Defines permissions for operations on a **specific entity instance**.
 - Attached directly to a Role, independent of the Role's scope binding
 
 **Cross-Scope Object Permissions**:
-A Role bound to Project-A scope can include Object Permissions for entities in Project-B scope. This enables scenarios like:
+When a Role bound to Project-A scope includes Object Permissions for entities in Project-B scope, the Project-B scope is automatically added to the Role. This enables scenarios like:
 - Sharing a personal VFolder with project team members
 - Granting access to a specific session across projects
 - Collaborative workflows spanning multiple scopes
@@ -202,7 +202,7 @@ A Role bound to Project-A scope can include Object Permissions for entities in P
 
 Each Role in the RBAC system has the following structure:
 
-**Core Attributes**:
+**Attributes**:
 - **Name**: Human-readable role name (e.g., "Project-A-Admin", "VFolder-X-Reader")
 - **Description**: Optional description of the role's purpose
 - **Scope Binding**: Every Role is bound to exactly one scope (Global, Domain, Project, or User)
@@ -336,17 +336,9 @@ By default, the system rejects scope deletion if any dependent Roles or Role Ass
 **Force Delete Option**:
 
 For administrative convenience and bulk operations, the system provides a force delete option:
-
-- **Soft-delete with force**: When enabled, automatically soft-deletes all dependent entities
-  - Automatically soft-deletes all Roles bound to the scope
-  - All Role Assignments for those Roles are also soft-deleted
-  - Maintains referential integrity - everything can be restored together
-  - All soft-deleted entities retain their relationships
-
 - **Hard-delete with force**: When enabled, automatically hard-deletes all dependent entities
   - Automatically hard-deletes all Roles bound to the scope
   - All Role Assignments for those Roles are also hard-deleted
-  - Database audit records may be retained
   - Irreversible - use with caution
 
 **System Role Protection**:
@@ -368,7 +360,6 @@ System-generated Roles (Domain Admin, Project Admin, User Owner) follow the same
 1. Admin hard-deletes Project-A with force option enabled
 2. System automatically hard-deletes 15 Role Assignments, then 3 Roles, then the scope
 3. All entities are permanently removed
-4. Audit log records the operation with CRITICAL severity
 
 **Best Practices**:
 - Review all Roles before deleting a scope
@@ -380,69 +371,43 @@ System-generated Roles (Domain Admin, Project Admin, User Owner) follow the same
 
 The RBAC system includes safeguards to prevent accidental loss of administrative access while maintaining operational flexibility.
 
-#### Last Admin Warning
+#### System Sourced Role Protection
 
-When attempting to remove (soft-delete, hard-delete, or deactivate) a Role Assignment for an admin role within a scope, the system checks if this is the last active admin for that scope.
+System sourced roles (Domain Admin, Project Admin, User Owner) are default admin roles automatically created when scopes are created, forming the fundamental infrastructure of the scope.
 
-**Warning Requirements**:
+**Deletion Constraints**:
 
-If the operation would result in a scope having no active administrators:
+System sourced roles cannot be individually deleted:
 
-1. **Warning Display**: System must display a prominent warning to the user
-   - Clearly indicate this is the last administrator for the scope
-   - Explain that the scope will become unmanageable through normal operations
-   - Inform that system administrator intervention will be required for recovery
+1. **Individual Deletion Prohibited**: When attempting to soft-delete or hard-delete a system sourced role, the system returns an error
+   - Display message: "System sourced roles cannot be deleted individually. They will be automatically removed when the scope is deleted."
+   - Protection is enforced by checking if the Role's source attribute is 'system'
 
-2. **Explicit Confirmation**: Operation requires explicit user confirmation
-   - User must acknowledge they understand the consequences
-   - Simple "Yes/No" confirmation is insufficient
+2. **Removal Through Scope Deletion**: System sourced roles are removed only when their corresponding scope is deleted
+   - When a scope is deleted, all system sourced roles bound to that scope are automatically deleted
+   - Handled according to the rules in the "Scope Deletion Policy" section
 
-3. **Audit Logging**: Last admin removal must be logged with CRITICAL severity
-   - Record the scope, role, user, and who performed the removal
-   - Mark as requiring special attention in audit reviews
+3. **Role Assignments Are Manageable**: While system sourced roles themselves cannot be deleted, Role Assignments for these roles can be created and removed normally
+   - Admins can be added or removed (by creating/deleting Role Assignments)
+   - Multiple users can be assigned to the same system sourced role
 
-**Admin Role Detection**:
+**Exception Handling**:
 
-The system identifies admin roles by:
-- Roles with `role_assignment:create` permission in the scope
-- System-generated admin roles (Domain Admin, Project Admin, User Owner)
-- Custom roles explicitly marked as administrative
+If you need to remove a system sourced role in special circumstances:
+- Contact your system administrator (Global Admin) for assistance
+- System administrators can take direct action at the database level or handle it through scope deletion
 
-#### System Administrator Recovery
+**Audit Logging**:
 
-When a scope loses all administrators (either accidentally or intentionally), system administrators must be able to restore access.
+Attempts to delete system sourced roles are recorded in the audit log:
+- Records the user who attempted the deletion and the time
+- Records the Role information and reason for denial
+- Supports monitoring for unusual patterns
 
-**Recovery Capabilities**:
-
-The system must provide mechanisms for authorized system administrators to:
-
-1. **Direct Role Assignment Creation**: Create a new Role Assignment for the orphaned scope
-   - Bypass normal permission checks with elevated privileges
-   - Target the scope's system-generated admin role
-   - Log the emergency intervention for audit purposes
-
-2. **Reactivate Soft-Deleted Assignments**: Restore previously soft-deleted admin Role Assignments
-   - Find inactive admin Role Assignments for the scope
-   - Change state from inactive to active
-   - Record who performed the reactivation
-
-3. **Emergency Administrative Interface**: Provide a dedicated interface for recovery operations
-   - Accessible only to Global Admins or system operators
-   - Includes safety checks and confirmation prompts
-   - Requires documented justification for audit compliance
-
-**Documentation Requirements**:
-
-Organizations deploying Backend.AI should document:
-- Emergency recovery procedures for orphaned scopes
-- Contact information for personnel authorized to perform recovery
-- Post-recovery verification steps
-- Incident response procedures
-
-**Prevention Best Practices**:
-- Maintain at least 2 active admins per critical scope
-- Regular audits of admin access across scopes
-- Monitoring and alerting for last-admin-removal events
+**Best Practices**:
+- Maintain at least 2 active admin Role Assignments per critical scope
+- Create and manage additional admin roles using custom roles
+- Regularly audit admin access across scopes
 
 ### Resource Ownership
 
@@ -504,9 +469,9 @@ Legend:
 | Resource Type | User Scope | Project Scope | Domain Scope |
 |---------------|------------|---------------|--------------|
 | VFolder | ✅ Yes | ✅ Yes | ⏳ Not yet |
-| Compute Session | ✅ Yes | ✅ Yes | ❌ No |
-| Model Service | ✅ Yes | ✅ Yes | ❌ No |
-| Image | ❌ No | ✅ Yes | ✅ Yes |
+| Compute Session | ✅ Yes | ✅ Yes | ⏳ Not yet |
+| Model Service | ✅ Yes | ✅ Yes | ⏳ Not yet |
+| Image | ✅ Yes | ✅ Yes | ✅ Yes |
 
 **Future Example - Domain-Level VFolder**:
 When Domain-level VFolders are implemented:
@@ -728,9 +693,6 @@ The existing VFolder invitation system will be migrated to Role and Role Assignm
   - Reduces risk by validating each entity type's migration independently
   - Allows for iterative fixes and improvements
 
-## Audit and Compliance
-
-The RBAC system includes comprehensive audit logging to track all permission-related activities and support compliance requirements.
 
 ### Audit Log Coverage
 

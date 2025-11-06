@@ -114,7 +114,7 @@ Role 및 Role Assignment 엔티티는 초기 구현에서 soft-delete 및 hard-d
   - 예시: 휴지통에 있는 VFolder의 파일 영구 삭제
   - Role의 경우: 역할 정의 제거 (활성 Role Assignment가 참조하지 않는 경우에만 허용)
   - Role Assignment의 경우: 할당 레코드 영구 제거
-  - 참고: 감사 목적으로 데이터베이스 레코드는 보존될 수 있음
+  - 참고: 감사 목적으로 데이터베이스 레코드는 특정 기간동안 보존될 수 있음
 
 ### 권한 위임
 
@@ -131,7 +131,7 @@ RBAC 시스템에서 권한 위임은 Role 및 Role Assignment 관리를 통해 
 3. User B는 이제 VFolder를 읽을 수 있음
 
 **스코프 규칙**:
-- 각 Role은 생성 시 단일 스코프에 바인딩됨
+- 각 Role은 생성 시 단일 스코프에 바인딩되며, Object Permission을 추가하는 경우에만 추가 스코프가 바인딩될 수 있음
 - Role Assignment는 해당 스코프 내에서 `role_assignment` 엔티티 타입에 대한 `create` 권한을 가진 사용자만 생성 가능
 - 스코프 관리자는 자신의 스코프 내에서만 역할 및 할당 관리
 - 크로스 스코프 공유는 계층적 위임이 아닌 Object Permission을 통해 활성화됨
@@ -193,7 +193,7 @@ RBAC 시스템은 두 가지 타입의 권한을 제공합니다:
 - Role의 스코프 바인딩과 독립적으로 Role에 직접 첨부됨
 
 **크로스 스코프 Object Permission**:
-Project-A 스코프에 바인딩된 Role은 Project-B 스코프의 엔티티에 대한 Object Permission을 포함할 수 있습니다. 이는 다음과 같은 시나리오를 가능하게 합니다:
+Project-A 스코프에 바인딩된 Role에서 Project-B 스코프의 엔티티에 대한 Object Permission을 포함할 경우 자동으로 Role에 Project-B 스코프가 추가됩니다. 이는 다음과 같은 시나리오를 가능하게 합니다:
 - 개인 VFolder를 프로젝트 팀 멤버와 공유
 - 프로젝트 간에 특정 세션에 대한 접근 권한 부여
 - 여러 스코프에 걸친 협업 워크플로우
@@ -202,7 +202,7 @@ Project-A 스코프에 바인딩된 Role은 Project-B 스코프의 엔티티에 
 
 RBAC 시스템의 각 Role은 다음 구조를 가집니다:
 
-**핵심 속성**:
+**속성**:
 - **Name**: 사람이 읽을 수 있는 역할 이름 (예: "Project-A-Admin", "VFolder-X-Reader")
 - **Description**: 역할 목적에 대한 선택적 설명
 - **Scope Binding**: 모든 Role은 정확히 하나의 스코프에 바인딩됨 (Global, Domain, Project, 또는 User)
@@ -336,22 +336,14 @@ graph TD
 **강제 삭제 옵션**:
 
 관리 편의성과 대량 작업을 위해, 시스템은 강제 삭제 옵션을 제공합니다:
-
-- **강제 Soft-delete**: 활성화되면 모든 종속 엔티티를 자동으로 soft-delete
-  - 스코프에 바인딩된 모든 Role을 자동으로 soft-delete
-  - 해당 Role의 모든 Role Assignment도 soft-delete됨
-  - 참조 무결성 유지 - 모든 것을 함께 복원 가능
-  - 모든 soft-delete된 엔티티는 관계를 유지
-
 - **강제 Hard-delete**: 활성화되면 모든 종속 엔티티를 자동으로 hard-delete
   - 스코프에 바인딩된 모든 Role을 자동으로 hard-delete
   - 해당 Role의 모든 Role Assignment도 hard-delete됨
-  - 데이터베이스 감사 레코드는 보존될 수 있음
   - 되돌릴 수 없음 - 주의해서 사용
 
 **System Role 보호**:
 
-시스템 생성 Role(Domain Admin, Project Admin, User Owner)은 동일한 삭제 규칙을 따릅니다:
+시스템 생성 Role은 동일한 삭제 규칙을 따릅니다:
 - 스코프가 존재하는 동안 개별적으로 삭제 불가
 - 스코프 삭제 시 자동으로 관리됨
 - 강제 삭제가 사용되면 시스템 역할도 스코프와 함께 삭제됨
@@ -368,7 +360,6 @@ graph TD
 1. 관리자가 강제 옵션을 활성화하여 Project-A를 hard-delete
 2. 시스템이 자동으로 15개의 Role Assignment, 그 다음 3개의 Role, 그 다음 스코프를 hard-delete
 3. 모든 엔티티가 영구적으로 제거됨
-4. 감사 로그가 CRITICAL 심각도로 작업을 기록
 
 **모범 사례**:
 - 스코프 삭제 전 모든 Role 검토
@@ -380,69 +371,43 @@ graph TD
 
 RBAC 시스템은 운영 유연성을 유지하면서 관리 접근 권한의 우발적 손실을 방지하기 위한 안전장치를 포함합니다.
 
-#### 마지막 관리자 경고
+#### System Sourced Role 보호
 
-스코프 내 관리자 역할에 대한 Role Assignment를 제거(soft-delete, hard-delete, 또는 비활성화)하려고 할 때, 시스템은 이것이 해당 스코프의 마지막 활성 관리자인지 확인합니다.
+System sourced role(Domain Admin, Project Admin, User Owner)은 스코프 생성 시 자동으로 생성되는 기본 관리자 역할로, 스코프의 기본 인프라를 구성합니다.
 
-**경고 요구사항**:
+**삭제 제약**:
 
-작업이 스코프에 활성 관리자가 없는 결과를 초래하는 경우:
+System sourced role은 개별적으로 삭제할 수 없습니다:
 
-1. **경고 표시**: 시스템은 사용자에게 눈에 띄는 경고를 표시해야 함
-   - 이것이 스코프의 마지막 관리자임을 명확히 표시
-   - 스코프가 정상 작업을 통해 관리 불가능하게 됨을 설명
-   - 복구를 위해 시스템 관리자 개입이 필요함을 알림
+1. **개별 삭제 금지**: System sourced role에 대한 soft-delete 또는 hard-delete 시도 시 시스템은 오류를 반환합니다
+   - "System sourced role은 개별적으로 삭제할 수 없습니다. 스코프를 삭제하면 자동으로 제거됩니다."라는 메시지 표시
+   - Role의 source 속성이 'system'인지 확인하여 보호
 
-2. **명시적 확인**: 작업에 명시적인 사용자 확인이 필요
-   - 사용자가 결과를 이해했음을 인정해야 함
-   - 단순한 "예/아니오" 확인은 불충분
+2. **스코프 삭제를 통한 제거**: System sourced role은 해당 스코프가 삭제될 때만 제거됩니다
+   - 스코프 삭제 시 스코프에 바인딩된 모든 system sourced role이 자동으로 삭제됨
+   - "스코프 삭제 정책" 섹션의 규칙에 따라 처리됨
 
-3. **감사 로깅**: 마지막 관리자 제거는 CRITICAL 심각도로 로깅되어야 함
-   - 스코프, 역할, 사용자 및 제거를 수행한 사람을 기록
-   - 감사 검토에서 특별한 주의가 필요한 것으로 표시
+3. **Role Assignment는 관리 가능**: System sourced role 자체는 삭제할 수 없지만, 이 역할에 대한 Role Assignment는 일반적인 방식으로 생성 및 제거 가능
+   - 관리자를 추가하거나 제거할 수 있음 (Role Assignment 생성/삭제)
+   - 여러 사용자가 동일한 system sourced role에 할당될 수 있음
 
-**관리자 역할 감지**:
+**예외 상황 처리**:
 
-시스템은 다음을 통해 관리자 역할을 식별합니다:
-- 스코프에서 `role_assignment:create` 권한을 가진 Role
-- 시스템 생성 관리자 역할 (Domain Admin, Project Admin, User Owner)
-- 관리자로 명시적으로 표시된 사용자 정의 역할
+특별한 상황에서 system sourced role을 제거해야 하는 경우:
+- 시스템 관리자(Global Admin)에게 문의하여 지원을 요청하십시오
+- 시스템 관리자는 데이터베이스 수준에서 직접 조치를 취하거나 스코프 삭제를 통해 처리할 수 있습니다
 
-#### 시스템 관리자 복구
+**감사 로깅**:
 
-스코프가 모든 관리자를 잃을 때(우발적이든 의도적이든), 시스템 관리자가 접근 권한을 복원할 수 있어야 합니다.
+System sourced role 삭제 시도는 감사 로그에 기록됩니다:
+- 시도한 사용자 및 시간 기록
+- Role 정보 및 거부 이유 기록
+- 비정상적인 패턴 감지를 위한 모니터링 지원
 
-**복구 기능**:
-
-시스템은 권한 있는 시스템 관리자를 위한 메커니즘을 제공해야 합니다:
-
-1. **직접 Role Assignment 생성**: 고아가 된 스코프에 대한 새 Role Assignment 생성
-   - 높은 권한으로 정상 권한 검사 우회
-   - 스코프의 시스템 생성 관리자 역할을 대상으로 함
-   - 감사 목적으로 긴급 개입 로깅
-
-2. **Soft-Delete된 할당 재활성화**: 이전에 soft-delete된 관리자 Role Assignment 복원
-   - 스코프에 대한 비활성 관리자 Role Assignment 찾기
-   - 상태를 비활성에서 활성으로 변경
-   - 재활성화를 수행한 사람을 기록
-
-3. **긴급 관리 인터페이스**: 복구 작업을 위한 전용 인터페이스 제공
-   - Global Admin 또는 시스템 운영자만 접근 가능
-   - 안전 확인 및 확인 프롬프트 포함
-   - 감사 준수를 위한 문서화된 정당성 필요
-
-**문서화 요구사항**:
-
-Backend.AI를 배포하는 조직은 다음을 문서화해야 합니다:
-- 고아가 된 스코프에 대한 긴급 복구 절차
-- 복구를 수행할 권한이 있는 인원의 연락처 정보
-- 복구 후 검증 단계
-- 인시던트 대응 절차
-
-**예방 모범 사례**:
-- 중요한 스코프당 최소 2명의 활성 관리자 유지
+**모범 사례**:
+- 중요한 스코프당 최소 2명의 활성 관리자 Role Assignment 유지
+- Custom role을 사용하여 추가 관리자 역할 생성 및 관리
 - 스코프 전체의 관리자 접근에 대한 정기 감사
-- 마지막 관리자 제거 이벤트에 대한 모니터링 및 알림
 
 ### 리소스 소유권
 
@@ -504,9 +469,9 @@ RBAC 시스템에서 리소스 소유권은 별도의 소유권 개념이 아닌
 | 리소스 타입 | User Scope | Project Scope | Domain Scope |
 |-------------|------------|---------------|--------------|
 | VFolder | ✅ Yes | ✅ Yes | ⏳ Not yet |
-| Compute Session | ✅ Yes | ✅ Yes | ❌ No |
-| Model Service | ✅ Yes | ✅ Yes | ❌ No |
-| Image | ❌ No | ✅ Yes | ✅ Yes |
+| Compute Session | ✅ Yes | ✅ Yes | ⏳ Not yet |
+| Model Service | ✅ Yes | ✅ Yes | ⏳ Not yet |
+| Image | ✅ Yes | ✅ Yes | ✅ Yes |
 
 **향후 예시 - Domain 수준 VFolder**:
 Domain 수준 VFolder가 구현되면:
@@ -728,9 +693,6 @@ VFolder-X에 대한 User B의 효과적인 권한:
   - 각 엔티티 타입의 마이그레이션을 독립적으로 검증하여 위험 감소
   - 반복적인 수정 및 개선 허용
 
-## 감사 및 규정 준수
-
-RBAC 시스템은 모든 권한 관련 활동을 추적하고 규정 준수 요구사항을 지원하기 위한 포괄적인 감사 로깅을 포함합니다.
 
 ### 감사 로그 범위
 
