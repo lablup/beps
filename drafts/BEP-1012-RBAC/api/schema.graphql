@@ -459,7 +459,7 @@ Input for creating a new custom role.
 Best Practices:
 1. Use descriptive names: "Project-A-Viewer" not "role1"
 2. Include a clear description of the role's purpose
-3. Add permissions separately using addPermissionsToRole mutation
+3. Add permissions separately using updateRolePermissions mutation
 """
 input CreateRoleInput {
   """Role name (must be unique within scope)"""
@@ -478,7 +478,7 @@ Input for updating an existing role.
 Notes:
 - All fields except 'id' are optional
 - Only updates name and description
-- To add/remove permissions, use addPermissionsToRole or removePermissionsFromRole
+- To add/remove permissions, use updateRolePermissions
 - System sourced roles can be modified but not deleted
 """
 input UpdateRoleInput {
@@ -493,31 +493,24 @@ input UpdateRoleInput {
 }
 
 """
-Input for adding permissions to a role.
+Input for updating role permissions.
+Allows adding and removing permissions in a single operation.
 """
-input AddPermissionsToRoleInput {
-  """Role ID to add permissions to"""
+input UpdateRolePermissionsInput {
+  """Role ID to update permissions for"""
   roleId: ID!
 
   """Scoped permissions to add"""
-  scopedPermissions: [ScopedPermissionInput!]
+  addedScopedPermissions: [ScopedPermissionInput!]
 
   """Object permissions to add"""
-  objectPermissions: [ObjectPermissionInput!]
-}
-
-"""
-Input for removing permissions from a role.
-"""
-input RemovePermissionsFromRoleInput {
-  """Role ID to remove permissions from"""
-  roleId: ID!
+  addedObjectPermissions: [ObjectPermissionInput!]
 
   """IDs of scoped permissions to remove"""
-  scopedPermissionIds: [ID!]
+  deletedScopedPermissionIds: [ID!]
 
   """IDs of object permissions to remove"""
-  objectPermissionIds: [ID!]
+  deletedObjectPermissionIds: [ID!]
 }
 
 # ==============================================================================
@@ -618,32 +611,19 @@ type Mutation {
   deleteRole(id: ID!): Role!
 
   """
-  Add permissions to an existing role.
+  Update role permissions by adding and/or removing permissions.
 
   Requires: UPDATE permission for role entity type
 
   Notes:
-  - Adds the specified permissions to the role
-  - Does not affect existing permissions
-  - Can add both scoped and object permissions in a single call
+  - Can add and remove permissions in a single operation
+  - Both addedPermissions and deletedPermissions are optional
+  - Additions are processed before deletions
+  - Can update both scoped and object permissions
 
   Returns the updated role with all permissions.
   """
-  addPermissionsToRole(input: AddPermissionsToRoleInput!): Role!
-
-  """
-  Remove permissions from an existing role.
-
-  Requires: UPDATE permission for role entity type
-
-  Notes:
-  - Removes the specified permissions from the role
-  - Does not affect other permissions
-  - Can remove both scoped and object permissions in a single call
-
-  Returns the updated role with remaining permissions.
-  """
-  removePermissionsFromRole(input: RemovePermissionsFromRoleInput!): Role!
+  updateRolePermissions(input: UpdateRolePermissionsInput!): Role!
 
   """
   Assign a role to a user in a specific scope.
