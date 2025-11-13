@@ -41,6 +41,19 @@ JSONString scalar type represents arbitrary JSON data
 scalar JSONString
 
 # ==============================================================================
+# Node Interface
+# ==============================================================================
+
+"""
+Node interface for entities that can be uniquely identified by ID.
+All main entities in the RBAC system implement this interface.
+"""
+interface Node {
+  """The ID of the object"""
+  id: ID!
+}
+
+# ==============================================================================
 # Enums
 # ==============================================================================
 
@@ -116,7 +129,6 @@ Role source indicating how the role was created.
 SYSTEM roles:
 - Automatically created when a scope is created
 - Cannot be individually deleted (lifecycle tied to scope)
-- Examples: Domain Admin, Project Admin, User Owner
 
 CUSTOM roles:
 - Manually created by administrators
@@ -156,20 +168,21 @@ enum RoleOrderField {
 Scoped Permission: Grants permission for an operation on ALL entities
 of a specific type within a scope.
 
-Format: entity_type:operation
-Example: "vfolder:read" allows reading all VFolders in the scope
-
-Use Cases:
-- Team-wide access to resource types
-- Standard role definitions (e.g., "Project Member" can create sessions)
-- Scope-level resource management
-
 Key Characteristics:
 - Applies to all entities of the specified type within the role's scope
 - Does NOT cascade to child scopes
 - Efficient for broad access patterns
 """
-type ScopedPermission {
+type ScopedPermission implements Node {
+  """The ID of the object"""
+  id: ID!
+
+  """Scope type where this permission applies"""
+  scopeType: ScopeType!
+
+  """Scope ID where this permission applies"""
+  scopeId: ID!
+
   """Entity type this permission applies to"""
   entityType: EntityType!
 
@@ -181,6 +194,8 @@ type ScopedPermission {
 Input type for creating scoped permissions
 """
 input ScopedPermissionInput {
+  scopeType: ScopeType!
+  scopeId: ID!
   entityType: EntityType!
   operation: OperationType!
 }
@@ -188,30 +203,17 @@ input ScopedPermissionInput {
 """
 Object Permission: Grants permission for an operation on a SPECIFIC entity instance.
 
-Format: entity_type:entity_id:operation
-Example: "vfolder:abc-123:read" allows reading only that specific VFolder
-
-Use Cases:
-- Sharing individual resources with specific users
-- Cross-scope collaboration (sharing personal VFolder with project team)
-- Fine-grained access control for sensitive resources
-
 Key Characteristics:
 - Applies only to the specific entity instance
 - Can reference entities from different scopes (enables cross-scope sharing)
 - When object permissions reference entities in other scopes, those scopes
   are automatically added to the role's additionalScopes field
 - Attached directly to a Role, independent of the Role's scope binding
-
-Cross-Scope Sharing Example:
-When a Role bound to User-A scope includes Object Permissions for a VFolder
-in Project-B scope, Project-B is automatically added to additionalScopes.
-This enables scenarios like:
-- Sharing a personal VFolder with project team members
-- Granting access to a specific session across projects
-- Collaborative workflows spanning multiple scopes
 """
-type ObjectPermission {
+type ObjectPermission implements Node {
+  """The ID of the object"""
+  id: ID!
+
   """Entity type this permission applies to"""
   entityType: EntityType!
 
@@ -281,19 +283,6 @@ System Sourced Roles (automatically created):
 Custom Roles (user-created):
 - Tailored to specific organizational requirements
 - Can be freely created, modified, and deleted
-- Examples: "Project-A-Viewer", "ML-Team-Member", "Dataset-X-Editor"
-
-Role Structure Example:
-  Role "Project-A-Member":
-  ├─ scope: { type: PROJECT, id: "project-a" }
-  ├─ scopedPermissions: [
-  │   { entityType: VFOLDER, operation: READ },
-  │   { entityType: COMPUTE_SESSION, operation: CREATE }
-  │  ]
-  ├─ objectPermissions: [
-  │   { entityType: MODEL_SERVICE, entityId: "model-x", operation: READ }
-  │  ]
-  └─ additionalScopes: [{ type: USER, id: "owner-of-model-x" }]
 
 Permission Conflict Resolution:
 When a user has multiple roles, the system uses a union (additive) model:
@@ -301,7 +290,7 @@ When a user has multiple roles, the system uses a union (additive) model:
 - If any role grants a permission, the user has that permission
 - There is no "deny" mechanism
 """
-type Role {
+type Role implements Node {
   """Unique identifier"""
   id: ID!
 
@@ -351,9 +340,6 @@ type Role {
   Automatically populated when object permissions reference entities
   from different scopes.
 
-  Example: If a Role bound to Project-A includes object permissions for
-  a VFolder in User-B's scope, User-B's scope appears here.
-
   Note: This is metadata only. It does NOT grant scoped permissions in
   those scopes, only access to the specific objects listed in
   objectPermissions.
@@ -385,16 +371,24 @@ Connection for paginated role results.
 Implements the Relay cursor-based pagination specification.
 """
 type RoleConnection {
-  edges: [RoleEdge!]!
+  """Pagination data for this connection."""
   pageInfo: PageInfo!
-  totalCount: Int!
+
+  """Contains the nodes in this connection."""
+  edges: [RoleEdge]!
+
+  """Total count of the GQL nodes of the query."""
+  count: Int
 }
 
 """
 Edge type for role connections
 """
 type RoleEdge {
-  node: Role!
+  """The item at the end of the edge"""
+  node: Role
+
+  """A cursor for use in pagination"""
   cursor: String!
 }
 
@@ -423,16 +417,6 @@ type PageInfo {
 Filter options for role queries.
 
 All filters are ANDed together. Omitted filters are not applied.
-
-Examples:
-1. Find all custom roles in a project:
-   { scopeType: PROJECT, scopeId: "proj-uuid", source: CUSTOM }
-
-2. Find roles with VFolder permissions:
-   { hasPermissionFor: VFOLDER }
-
-3. Find roles with "admin" in the name:
-   { nameContains: "admin" }
 """
 input RoleFilter {
   """Filter by scope type (GLOBAL, DOMAIN, PROJECT, USER)"""
@@ -474,31 +458,8 @@ Input for creating a new custom role.
 
 Best Practices:
 1. Use descriptive names: "Project-A-Viewer" not "role1"
-2. Prefer scoped permissions for team-wide access
-3. Use object permissions for specific resource sharing
-4. Include a clear description of the role's purpose
-
-Example - Team Role:
-  {
-    name: "ML-Team-Member",
-    description: "Standard member access for ML team",
-    scope: { type: PROJECT, id: "ml-project" },
-    scopedPermissions: [
-      { entityType: VFOLDER, operation: READ },
-      { entityType: COMPUTE_SESSION, operation: CREATE }
-    ]
-  }
-
-Example - Resource-Specific Role:
-  {
-    name: "Dataset-X-Editor",
-    description: "Edit access to Dataset X",
-    scope: { type: USER, id: "owner-uuid" },
-    objectPermissions: [
-      { entityType: VFOLDER, entityId: "dataset-x", operation: READ },
-      { entityType: VFOLDER, entityId: "dataset-x", operation: UPDATE }
-    ]
-  }
+2. Include a clear description of the role's purpose
+3. Add permissions separately using addPermissionsToRole mutation
 """
 input CreateRoleInput {
   """Role name (must be unique within scope)"""
@@ -509,18 +470,6 @@ input CreateRoleInput {
 
   """Scope to bind this role to"""
   scope: ScopeInput!
-
-  """
-  Scoped permissions to include.
-  These grant access to all entities of the specified types within the scope.
-  """
-  scopedPermissions: [ScopedPermissionInput!]
-
-  """
-  Object permissions to include.
-  These grant access to specific entity instances, can span scopes.
-  """
-  objectPermissions: [ObjectPermissionInput!]
 }
 
 """
@@ -528,25 +477,9 @@ Input for updating an existing role.
 
 Notes:
 - All fields except 'id' are optional
-- Providing scopedPermissions or objectPermissions REPLACES the existing list
-- To add/remove individual permissions, fetch the role, modify locally, then update
+- Only updates name and description
+- To add/remove permissions, use addPermissionsToRole or removePermissionsFromRole
 - System sourced roles can be modified but not deleted
-
-Example - Update name and description only:
-  {
-    id: "role-uuid",
-    name: "New Name",
-    description: "New description"
-  }
-
-Example - Replace all permissions:
-  {
-    id: "role-uuid",
-    scopedPermissions: [
-      { entityType: VFOLDER, operation: READ },
-      { entityType: VFOLDER, operation: UPDATE }
-    ]
-  }
 """
 input UpdateRoleInput {
   """Role ID to update"""
@@ -557,18 +490,34 @@ input UpdateRoleInput {
 
   """New description (optional)"""
   description: String
+}
 
-  """
-  Replace scoped permissions (optional).
-  If provided, completely replaces the existing scoped permissions.
-  """
+"""
+Input for adding permissions to a role.
+"""
+input AddPermissionsToRoleInput {
+  """Role ID to add permissions to"""
+  roleId: ID!
+
+  """Scoped permissions to add"""
   scopedPermissions: [ScopedPermissionInput!]
 
-  """
-  Replace object permissions (optional).
-  If provided, completely replaces the existing object permissions.
-  """
+  """Object permissions to add"""
   objectPermissions: [ObjectPermissionInput!]
+}
+
+"""
+Input for removing permissions from a role.
+"""
+input RemovePermissionsFromRoleInput {
+  """Role ID to remove permissions from"""
+  roleId: ID!
+
+  """IDs of scoped permissions to remove"""
+  scopedPermissionIds: [ID!]
+
+  """IDs of object permissions to remove"""
+  objectPermissionIds: [ID!]
 }
 
 # ==============================================================================
@@ -581,89 +530,6 @@ input UpdateRoleInput {
 
 """
 Root query type for RBAC operations.
-
-Query Examples:
-
-1. Get a specific role:
-   query {
-     role(id: "role-uuid") {
-       id
-       name
-       description
-       source
-       scope {
-         type
-         id
-       }
-       scopedPermissions {
-         entityType
-         operation
-       }
-       objectPermissions {
-         entityType
-         entityId
-         operation
-       }
-     }
-   }
-
-2. List all custom roles in a project:
-   query {
-     roles(
-       filter: { scopeType: PROJECT, scopeId: "proj-uuid", source: CUSTOM }
-       orderBy: { field: NAME, direction: ASC }
-       first: 20
-     ) {
-       edges {
-         node {
-           id
-           name
-           description
-           scopedPermissions {
-             entityType
-             operation
-           }
-         }
-       }
-       totalCount
-     }
-   }
-
-3. Find roles with VFolder permissions:
-   query {
-     roles(
-       filter: { hasPermissionFor: VFOLDER }
-       first: 50
-     ) {
-       edges {
-         node {
-           id
-           name
-           scopedPermissions {
-             entityType
-             operation
-           }
-         }
-       }
-     }
-   }
-
-4. Paginated role listing:
-   query {
-     roles(first: 10, after: "cursor-value") {
-       edges {
-         node {
-           id
-           name
-           description
-         }
-       }
-       pageInfo {
-         hasNextPage
-         endCursor
-       }
-     }
-   }
 """
 type Query {
   """
@@ -713,139 +579,6 @@ type Query {
 
 """
 Root mutation type for RBAC operations.
-
-Mutation Examples:
-
-1. Create a project viewer role:
-   mutation {
-     createRole(input: {
-       name: "Project-A-Viewer"
-       description: "Read-only access"
-       scope: { type: PROJECT, id: "project-a" }
-       scopedPermissions: [
-         { entityType: VFOLDER, operation: READ }
-         { entityType: COMPUTE_SESSION, operation: READ }
-       ]
-     }) {
-       id
-       name
-       scopedPermissions {
-         entityType
-         operation
-       }
-     }
-   }
-
-2. Create a role with object permissions:
-   mutation {
-     createRole(input: {
-       name: "VFolder-X-Collaborator"
-       scope: { type: USER, id: "owner-uuid" }
-       objectPermissions: [
-         { entityType: VFOLDER, entityId: "vfolder-x", operation: READ }
-         { entityType: VFOLDER, entityId: "vfolder-x", operation: UPDATE }
-       ]
-     }) {
-       id
-       name
-       objectPermissions {
-         entityType
-         entityId
-         operation
-       }
-       additionalScopes {
-         type
-         id
-       }
-     }
-   }
-
-3. Update role permissions:
-   mutation {
-     updateRole(input: {
-       id: "role-uuid"
-       scopedPermissions: [
-         { entityType: VFOLDER, operation: READ }
-         { entityType: VFOLDER, operation: UPDATE }
-       ]
-     }) {
-       id
-       scopedPermissions {
-         entityType
-         operation
-       }
-     }
-   }
-
-4. Delete a custom role:
-   mutation {
-     deleteRole(id: "role-uuid")
-   }
-
-5. Assign a role to a user:
-   mutation {
-     createRoleAssignment(input: {
-       userId: "alice-uuid"
-       roleId: "project-member-role-uuid"
-       scope: { type: PROJECT, id: "project-a-uuid" }
-     }) {
-       id
-       userId
-       role {
-         name
-       }
-       scope {
-         type
-         id
-       }
-       state
-       grantedAt
-     }
-   }
-
-6. Revoke a role assignment:
-   mutation {
-     deleteRoleAssignment(id: "role-assignment-uuid")
-   }
-
-Use Cases:
-
-1. Setting Up Project Roles:
-   - Create "Project-A-Admin" with full permissions
-   - Create "Project-A-Member" with standard member access
-   - Create "Project-A-Viewer" with read-only access
-
-2. Resource-Specific Access:
-   - Share a specific VFolder with a collaborator
-   - Grant access to a specific compute session
-   - Provide read access to a specific model service
-
-3. Evolving Permissions:
-   - Start with basic permissions for new team members
-   - Expand permissions as they gain more responsibility
-   - Remove permissions when changing roles
-
-4. Cross-Scope Collaboration:
-   - Share personal resources with project teams
-   - Grant access to resources across projects
-   - Enable collaborative workflows spanning multiple scopes
-
-Best Practices:
-
-1. Role Naming:
-   - Use descriptive names: "Project-A-Member" not "role1"
-   - Include scope context: "ML-Team-Viewer"
-   - Be consistent across the organization
-
-2. Permission Granularity:
-   - Use scoped permissions for team-wide access
-   - Use object permissions for specific resource sharing
-   - Start with minimal permissions and expand as needed
-
-3. Regular Audits:
-   - Review custom roles periodically
-   - Remove unused roles
-   - Update permissions to match current needs
 """
 type Mutation {
   """
@@ -880,9 +613,37 @@ type Mutation {
   - System sourced roles cannot be deleted
   - Deletion may be prevented if role is currently assigned to users
 
-  Returns the ID of the deleted role.
+  Returns the deleted role.
   """
-  deleteRole(id: ID!): ID!
+  deleteRole(id: ID!): Role!
+
+  """
+  Add permissions to an existing role.
+
+  Requires: UPDATE permission for role entity type
+
+  Notes:
+  - Adds the specified permissions to the role
+  - Does not affect existing permissions
+  - Can add both scoped and object permissions in a single call
+
+  Returns the updated role with all permissions.
+  """
+  addPermissionsToRole(input: AddPermissionsToRoleInput!): Role!
+
+  """
+  Remove permissions from an existing role.
+
+  Requires: UPDATE permission for role entity type
+
+  Notes:
+  - Removes the specified permissions from the role
+  - Does not affect other permissions
+  - Can remove both scoped and object permissions in a single call
+
+  Returns the updated role with remaining permissions.
+  """
+  removePermissionsFromRole(input: RemovePermissionsFromRoleInput!): Role!
 
   """
   Assign a role to a user in a specific scope.
@@ -909,9 +670,9 @@ type Mutation {
   - Removes the user's access to all permissions granted by this role
   - Does not affect other role assignments the user may have
 
-  Returns the ID of the deleted role assignment.
+  Returns the deleted role assignment.
   """
-  deleteRoleAssignment(id: ID!): ID!
+  deleteRoleAssignment(id: ID!): RoleAssignment!
 }
 
 # ==============================================================================
@@ -932,20 +693,8 @@ RoleAssignment: Maps a user to a role within a specific scope.
 This is a separate entity that creates the connection between users and roles.
 It provides flexible management without modifying the Role itself, and maintains
 a complete audit trail of who granted access and when.
-
-Example:
-  User Alice is assigned "Project-A-Member" role:
-  - user: "alice-uuid"
-  - role: "project-a-member-role-uuid"
-  - scope: { type: PROJECT, id: "project-a-uuid" }
-  - state: ACTIVE
-  - grantedBy: "admin-uuid"
-  - grantedAt: "2025-01-15T10:30:00Z"
-
-Result: Alice immediately has all permissions defined in "Project-A-Member" role
-within the Project-A scope.
 """
-type RoleAssignment {
+type RoleAssignment implements Node {
   """Unique identifier"""
   id: ID!
 
@@ -973,21 +722,6 @@ type RoleAssignment {
 
 """
 Input for creating a role assignment.
-
-Example - Assign project member role:
-  {
-    userId: "alice-uuid",
-    roleId: "project-member-role-uuid",
-    scope: { type: PROJECT, id: "project-a-uuid" }
-  }
-
-Example - Temporary contractor access:
-  {
-    userId: "contractor-uuid",
-    roleId: "project-viewer-role-uuid",
-    scope: { type: PROJECT, id: "project-uuid" },
-    expiresAt: "2025-12-31T23:59:59Z"
-  }
 """
 input CreateRoleAssignmentInput {
   """User to assign the role to"""
