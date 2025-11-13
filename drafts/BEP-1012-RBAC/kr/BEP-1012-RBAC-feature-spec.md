@@ -81,8 +81,7 @@ RBAC 시스템은 다음 엔티티 타입에 대한 권한을 관리합니다:
 | Project | 도메인 내 프로젝트 그룹핑 | 엔티티 & 스코프 |
 | User | 사용자 계정 | 엔티티 & 스코프 |
 | Role | 권한 집합 정의 | 엔티티만 |
-| Role Assignment | 특정 스코프 내 사용자-역할 매핑 | 엔티티만 |
-| {Entity}:assignment | 특정 엔티티를 다른 사용자에게 공유하는 매핑 (예: vfolder:assignment, compute_session:assignment) | 엔티티만 |
+| {Entity}:assignment | 특정 엔티티를 다른 사용자에게 공유하는 매핑 (예: role:assignment, vfolder:assignment, compute_session:assignment) | 엔티티만 |
 
 
 ### 작업
