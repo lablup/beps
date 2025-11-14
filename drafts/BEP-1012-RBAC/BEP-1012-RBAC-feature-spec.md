@@ -81,8 +81,7 @@ The RBAC system will manage permissions for the following entity types:
 | Project | Project grouping within domains | Entity & Scope |
 | User | User accounts | Entity & Scope |
 | Role | Permission set definitions | Entity only |
-| Role Assignment | User-role mappings within specific scopes | Entity only |
-| {Entity}:assignment | Mappings for sharing specific entities with other users (e.g., vfolder:assignment, compute_session:assignment) | Entity only |
+| {Entity}:assignment | Mappings for sharing specific entities with other users (e.g., role:assignment vfolder:assignment, compute_session:assignment) | Entity only |
 
 **Note**: Domain, Project, and User serve dual roles as both manageable entities and permission scopes. Role defines what permissions are available, while Role Assignment maps users to roles within specific scopes.
 
