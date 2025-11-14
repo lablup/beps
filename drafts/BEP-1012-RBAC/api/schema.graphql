@@ -326,14 +326,42 @@ type Role implements Node {
   """
   Scoped permissions: entity type + operation.
   These apply to all entities of the specified type within the role's scope.
+
+  Supports cursor-based pagination following Relay specification.
   """
-  scopedPermissions: [ScopedPermission!]!
+  scopedPermissions(
+    """Number of items to return from the start (forward pagination)"""
+    first: Int
+
+    """Cursor to start from (forward pagination)"""
+    after: String
+
+    """Number of items to return from the end (backward pagination)"""
+    last: Int
+
+    """Cursor to start from (backward pagination)"""
+    before: String
+  ): ScopedPermissionConnection!
 
   """
   Object permissions: entity type + entity ID + operation.
   These apply only to specific entity instances and can span scopes.
+
+  Supports cursor-based pagination following Relay specification.
   """
-  objectPermissions: [ObjectPermission!]!
+  objectPermissions(
+    """Number of items to return from the start (forward pagination)"""
+    first: Int
+
+    """Cursor to start from (forward pagination)"""
+    after: String
+
+    """Number of items to return from the end (backward pagination)"""
+    last: Int
+
+    """Cursor to start from (backward pagination)"""
+    before: String
+  ): ObjectPermissionConnection!
 
   """
   Additional scopes where this role has object permissions.
@@ -387,6 +415,58 @@ Edge type for role connections
 type RoleEdge {
   """The item at the end of the edge"""
   node: Role
+
+  """A cursor for use in pagination"""
+  cursor: String!
+}
+
+"""
+Connection for paginated scoped permission results.
+Implements the Relay cursor-based pagination specification.
+"""
+type ScopedPermissionConnection {
+  """Pagination data for this connection."""
+  pageInfo: PageInfo!
+
+  """Contains the nodes in this connection."""
+  edges: [ScopedPermissionEdge]!
+
+  """Total count of the GQL nodes of the query."""
+  count: Int
+}
+
+"""
+Edge type for scoped permission connections
+"""
+type ScopedPermissionEdge {
+  """The item at the end of the edge"""
+  node: ScopedPermission
+
+  """A cursor for use in pagination"""
+  cursor: String!
+}
+
+"""
+Connection for paginated object permission results.
+Implements the Relay cursor-based pagination specification.
+"""
+type ObjectPermissionConnection {
+  """Pagination data for this connection."""
+  pageInfo: PageInfo!
+
+  """Contains the nodes in this connection."""
+  edges: [ObjectPermissionEdge]!
+
+  """Total count of the GQL nodes of the query."""
+  count: Int
+}
+
+"""
+Edge type for object permission connections
+"""
+type ObjectPermissionEdge {
+  """The item at the end of the edge"""
+  node: ObjectPermission
 
   """A cursor for use in pagination"""
   cursor: String!
@@ -501,16 +581,16 @@ input UpdateRolePermissionsInput {
   roleId: ID!
 
   """Scoped permissions to add"""
-  addedScopedPermissions: [ScopedPermissionInput!]
+  scopedPermissionsToAdd: [ScopedPermissionInput!]
 
   """Object permissions to add"""
-  addedObjectPermissions: [ObjectPermissionInput!]
+  objectPermissionsToAdd: [ObjectPermissionInput!]
 
   """IDs of scoped permissions to remove"""
-  deletedScopedPermissionIds: [ID!]
+  scopedPermissionIdsToDelete: [ID!]
 
   """IDs of object permissions to remove"""
-  deletedObjectPermissionIds: [ID!]
+  objectPermissionIdsToDelete: [ID!]
 }
 
 # ==============================================================================
@@ -617,7 +697,7 @@ type Mutation {
 
   Notes:
   - Can add and remove permissions in a single operation
-  - Both addedPermissions and deletedPermissions are optional
+  - All permission fields are optional
   - Additions are processed before deletions
   - Can update both scoped and object permissions
 
