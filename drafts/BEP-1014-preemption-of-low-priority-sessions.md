@@ -40,9 +40,7 @@ When doing preemption, there may be multiple running sessions with same or diffe
 Choose the preempted sessions by the following order, until we have enough released resources to start the pending session:
 
 * Lowest priority value
-
 * The job start time
-
   - Oldest first or newest first depending on `preemption_order` configuration
 
 ### Frontend and UI
@@ -53,11 +51,8 @@ Choose the preempted sessions by the following order, until we have enough relea
 ### Resource Policies
 
 * Per-project resource policy and user resource policies should be able to:
-
   - The default priority
-
   - Enable/disable ability to change priority
-
   - The priority value range they can set when enabled
 
 
@@ -91,11 +86,8 @@ The primary use case will be:
 Though, it may not apply when:
 
 * The preempted session is an inference job
-
   - The autoscaling mechanism automatically restores the replicas when there are released resources.
-
   - This automatic restoration is also subject to the priority of the inference deployment.
-
 * The preempted session is an interactive job, which needs human intervention to resume work.
 
 If we want to resume a suspended session, we need to keep its configuration and metadata when terminated,
@@ -106,6 +98,5 @@ We need to define the conditions and how to achieve this.
 
 * Terminate the containers but keep the session object by marking it "suspended".
   Re-enqueue the session when resumed and let the scheduler create a fresh new session using the same configuration.
-
 * Stop the container and marking the session "suspended", but don't remove it.
   This allows the resumed/restarted container to reuse any local resource (e.g., scratch directories).
