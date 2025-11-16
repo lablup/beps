@@ -29,7 +29,7 @@ Since the scheduler runs in the resource group scope, this configuration should 
 
 The scheduler determines if it needs to perform preemption as follows:
 
-- There are not enough resources to schedule a pending session.
+- There are not enough resources to schedule the pending session in the front of the job queue.
 - There are running sessions with lower priority than the pending session in the front of the job queue.
 
 When doing preemption, there may be multiple running sessions with same or different priority values to preempt.
@@ -55,12 +55,14 @@ Currently there is no automatic resumption once a running session is terminated.
 
 However, this may be required for cases like:
 
-- The preempted session is a batch job, which has internal checkpointing and resumption mechanisms.
+* The preempted session is a batch job, which has internal checkpointing and resumption mechanisms.
 
-Though, it may not be required when:
+Though, it may not apply when:
 
-- The preempted session is an inference job, which has no auto-scaling configuration applied.
-- The preempted session is an interactive job, which needs human intervention to resume work.
+* The preempted session is an inference job
+  - The autoscaling mechanism automatically restores the replicas when there are released resources.
+  - This automatic restoration is also subject to the priority of the inference deployment.
+* The preempted session is an interactive job, which needs human intervention to resume work.
 
 If we want to resume the preempted session, we need to keep its configuration and metadata when terminated,
 and make it a pending session again when there are released resources.
