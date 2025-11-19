@@ -160,6 +160,46 @@ enum RoleOrderField {
   UPDATED_AT
 }
 
+"""
+Fields available for ordering scoped permission queries
+"""
+enum ScopedPermissionOrderField {
+  ENTITY_TYPE
+  OPERATION
+  SCOPE_TYPE
+}
+
+"""
+Fields available for ordering object permission queries
+"""
+enum ObjectPermissionOrderField {
+  ENTITY_TYPE
+  ENTITY_ID
+  OPERATION
+}
+
+"""
+Ordering options for scoped permission queries
+"""
+input ScopedPermissionOrderBy {
+  """Field to order by"""
+  field: ScopedPermissionOrderField!
+
+  """Sort direction"""
+  direction: OrderDirection!
+}
+
+"""
+Ordering options for object permission queries
+"""
+input ObjectPermissionOrderBy {
+  """Field to order by"""
+  field: ObjectPermissionOrderField!
+
+  """Sort direction"""
+  direction: OrderDirection!
+}
+
 # ==============================================================================
 # Permission Types
 # ==============================================================================
@@ -330,6 +370,9 @@ type Role implements Node {
   Supports cursor-based pagination following Relay specification.
   """
   scopedPermissions(
+    """Ordering specification"""
+    orderBy: [ScopedPermissionOrderBy!]
+
     """Number of items to return from the start (forward pagination)"""
     first: Int
 
@@ -350,6 +393,9 @@ type Role implements Node {
   Supports cursor-based pagination following Relay specification.
   """
   objectPermissions(
+    """Ordering specification"""
+    orderBy: [ObjectPermissionOrderBy!]
+
     """Number of items to return from the start (forward pagination)"""
     first: Int
 
@@ -374,8 +420,8 @@ type Role implements Node {
   """
   additionalScopes: [Scope!]!
 
-  """User ID who created this role (null for system-generated roles)"""
-  createdById: ID
+  """User who created this role (null for system-generated roles)"""
+  createdBy: UserNode
 
   """Timestamp when role was created"""
   createdAt: DateTime!
@@ -388,6 +434,31 @@ type Role implements Node {
   Soft-deleted roles can be reactivated by authorized administrators.
   """
   deletedAt: DateTime
+
+  """
+  Users assigned to this role.
+  Shows all role assignments for this role with filtering and pagination support.
+  Supports cursor-based pagination following Relay specification.
+  """
+  assignments(
+    """Filter criteria for assignments"""
+    filter: RoleAssignmentFilter
+
+    """Ordering specification"""
+    orderBy: [RoleAssignmentOrderBy!]
+
+    """Number of items to return from the start (forward pagination)"""
+    first: Int
+
+    """Cursor to start from (forward pagination)"""
+    after: String
+
+    """Number of items to return from the end (backward pagination)"""
+    last: Int
+
+    """Cursor to start from (backward pagination)"""
+    before: String
+  ): RoleAssignmentConnection!
 }
 
 # ==============================================================================
@@ -494,28 +565,80 @@ type PageInfo {
 # ==============================================================================
 
 """
+String filter for text-based fields.
+Supports various matching operations (case-sensitive and case-insensitive).
+"""
+input StringFilter {
+  contains: String = null
+  startsWith: String = null
+  endsWith: String = null
+  equals: String = null
+  notEquals: String = null
+  iContains: String = null
+  iStartsWith: String = null
+  iEndsWith: String = null
+  iEquals: String = null
+  iNotEquals: String = null
+}
+
+"""
+Filter for scope type. Supports exact match or inclusion in a list of scope types.
+"""
+input ScopeTypeFilter {
+  in: [ScopeType!] = null
+  equals: ScopeType = null
+}
+
+"""
+Filter for role source. Supports exact match or inclusion in a list of role sources.
+"""
+input RoleSourceFilter {
+  in: [RoleSource!] = null
+  equals: RoleSource = null
+}
+
+"""
+Input for filtering roles by object permission existence.
+Used to find roles that have any object permission for a specific entity instance.
+"""
+input ObjectPermissionExistsInput {
+  """Entity type to check"""
+  entityType: EntityType!
+
+  """Specific entity ID to check"""
+  entityId: ID!
+}
+
+"""
 Filter options for role queries.
 
 All filters are ANDed together. Omitted filters are not applied.
 """
 input RoleFilter {
   """Filter by scope type (GLOBAL, DOMAIN, PROJECT, USER)"""
-  scopeType: ScopeType
+  scopeType: ScopeTypeFilter = null
 
   """Filter by scope ID (must be used with scopeType)"""
   scopeId: ID
 
   """Filter by role source (SYSTEM or CUSTOM)"""
-  source: RoleSource
+  source: RoleSourceFilter = null
 
-  """Filter by roles whose name contains this string (case-insensitive)"""
-  nameContains: String
+  """Filter by roles whose name matches the given pattern"""
+  name: StringFilter = null
 
   """
   Filter by roles that have any permission (scoped or object) for this entity type.
   Useful for finding all roles that can access a specific resource type.
   """
   hasPermissionFor: EntityType
+
+  """
+  Filter by roles that have any object permission for a specific entity instance.
+  Useful for finding all roles that can access a specific resource.
+  Example: Find all roles that have permission for vfolder ID "abc123"
+  """
+  hasObjectPermission: ObjectPermissionExistsInput = null
 }
 
 """
@@ -644,6 +767,46 @@ type Query {
     """Cursor to start from (backward pagination)"""
     before: String
   ): RoleConnection!
+
+  """
+  Get a specific role assignment by ID.
+  Returns null if role assignment not found or user lacks permission.
+  """
+  roleAssignment(id: ID!): RoleAssignment
+
+  """
+  List role assignments with optional filtering and pagination.
+  Supports cursor-based pagination following Relay specification.
+
+  Useful for finding assignments across multiple roles or for specific users.
+  For example:
+  - Find all role assignments for a specific user
+  - Find all assignments in a specific scope
+  - Find all active assignments for a role
+
+  Performance considerations:
+  - Always use pagination for large result sets
+  - Use filters to narrow results before fetching
+  """
+  roleAssignments(
+    """Filter criteria (all filters are ANDed together)"""
+    filter: RoleAssignmentFilter
+
+    """Ordering specification"""
+    orderBy: [RoleAssignmentOrderBy!]
+
+    """Number of items to return from the start (forward pagination)"""
+    first: Int
+
+    """Cursor to start from (forward pagination)"""
+    after: String
+
+    """Number of items to return from the end (backward pagination)"""
+    last: Int
+
+    """Cursor to start from (backward pagination)"""
+    before: String
+  ): RoleAssignmentConnection!
 }
 
 # ==============================================================================
@@ -747,6 +910,10 @@ enum RoleAssignmentState {
   INACTIVE
 }
 
+extend type UserNode @key(fields: "id") {
+  id: ID! @external
+}
+
 """
 RoleAssignment: Maps a user to a role within a specific scope.
 
@@ -758,8 +925,8 @@ type RoleAssignment implements Node {
   """Unique identifier"""
   id: ID!
 
-  """User ID receiving the role"""
-  userId: ID!
+  """User receiving the role"""
+  user: UserNode!
 
   """The role being assigned"""
   role: Role!
@@ -770,14 +937,116 @@ type RoleAssignment implements Node {
   """Assignment state (ACTIVE or INACTIVE)"""
   state: RoleAssignmentState!
 
-  """User ID who granted this assignment"""
-  grantedById: ID!
+  """User who granted this assignment"""
+  grantedBy: UserNode!
 
   """Timestamp when assignment was granted"""
   grantedAt: DateTime!
 
   """Optional expiration time for temporary access"""
   expiresAt: DateTime
+}
+
+"""
+Connection for paginated role assignment results.
+Implements the Relay cursor-based pagination specification.
+"""
+type RoleAssignmentConnection {
+  """Pagination data for this connection."""
+  pageInfo: PageInfo!
+
+  """Contains the nodes in this connection."""
+  edges: [RoleAssignmentEdge]!
+
+  """Total count of the GQL nodes of the query."""
+  count: Int
+}
+
+"""
+Edge type for role assignment connections
+"""
+type RoleAssignmentEdge {
+  """The item at the end of the edge"""
+  node: RoleAssignment
+
+  """A cursor for use in pagination"""
+  cursor: String!
+}
+
+"""
+Fields available for ordering role assignment queries
+"""
+enum RoleAssignmentOrderField {
+  GRANTED_AT
+  EXPIRES_AT
+  ROLE_NAME
+  ROLE_ID
+  USER_EMAIL
+  USER_NAME
+}
+
+"""
+Ordering options for role assignment queries
+"""
+input RoleAssignmentOrderBy {
+  """Field to order by"""
+  field: RoleAssignmentOrderField!
+
+  """Sort direction"""
+  direction: OrderDirection!
+}
+
+"""
+Filter for user-related fields in role assignments.
+Reusable across different queries that need user filtering.
+"""
+input UserFilterInput {
+  """Filter by user ID (exact match, fastest)"""
+  id: ID
+
+  """Filter by user email"""
+  email: StringFilter = null
+
+  """Filter by username"""
+  username: StringFilter = null
+
+  """Filter by user's full name"""
+  fullName: StringFilter = null
+
+  """Filter by user active status"""
+  isActive: Boolean = null
+}
+
+"""
+Filter for role-related fields in role assignments.
+Reusable across different queries that need role filtering.
+"""
+input RoleFilterInput {
+  """Filter by role ID (exact match, fastest)"""
+  id: ID
+
+  """Filter by role name"""
+  name: StringFilter = null
+
+  """Filter by role source (SYSTEM or CUSTOM)"""
+  source: RoleSourceFilter = null
+}
+
+"""
+Filter options for role assignment queries.
+
+All filters are ANDed together. Omitted filters are not applied.
+Supports nested filtering for users and roles.
+"""
+input RoleAssignmentFilter {
+  """Filter by user criteria"""
+  user: UserFilterInput = null
+
+  """Filter by role criteria"""
+  role: RoleFilterInput = null
+
+  """Filter by assignment state (ACTIVE or INACTIVE)"""
+  state: RoleAssignmentState
 }
 
 """
