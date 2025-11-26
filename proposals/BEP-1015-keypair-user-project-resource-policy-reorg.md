@@ -195,6 +195,7 @@ We could repurpose the existing project resource policy as "project resource pol
 
 
 > [!NOTE] Discussion required
+> 
 > We could even **merge per-user resource policies into per-project resource** if we make all users have their own "workspace" project.
 > The problem is that sometimes we may want to impose resource limits across multiple users who belong to different projects. For such case, we may want to have separate per-user reference to external resource policies.
 > 
