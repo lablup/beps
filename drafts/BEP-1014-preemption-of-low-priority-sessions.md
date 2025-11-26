@@ -18,11 +18,11 @@ There are some use cases that we need to preempt already-running low-priority se
 
 ### Configuration
 
-| Field | Scope | Default | Description |
-|-------|-------|---------|-------------|
-| `preemptible_priority` | Resource Group | 5 | The priority number threshold to make running sessions with the priority value lower or equivalent to this preemptible. |
-| `preemption_order` | Resource Group | "oldest" | Preempt "oldest" or "newest" running sessions first when they have same (lower) priority. |
-| `preemption_mode` | Resource Group | "terminate" | Specify how to do preemption. Availalbe values: "terminate", "suspend". |
+| Field                  | Scope          | Default     | Description                                                                                                             |
+| ---------------------- | -------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `preemptible_priority` | Resource Group | 5           | The priority number threshold to make running sessions with the priority value lower or equivalent to this preemptible. |
+| `preemption_order`     | Resource Group | "oldest"    | Preempt "oldest" or "newest" running sessions first when they have same (lower) priority.                               |
+| `preemption_mode`      | Resource Group | "terminate" | Specify how to do preemption. Availalbe values: "terminate", "suspend".                                                 |
 
 Since the scheduler runs in the resource group scope, this configuration should be per resource group.
 
