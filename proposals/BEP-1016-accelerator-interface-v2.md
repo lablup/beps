@@ -8,7 +8,7 @@ Created: 2025-11-28
 
 ## Current Design
 
-### `AbstractComputeDevice` API
+### `AbstractComputePlugin` API
 
 | Function                                                         | Role                                                                                                                                   |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -66,10 +66,10 @@ See [BEP-1000](https://github.com/lablup/beps/blob/main/proposals/BEP-1000-redef
 | Function                           | Role                                                                                                                                                                 |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `__init__(workload, device_alloc)` | Initialize the instance with the given workload and allocation                                                                                                       |
-| `pre_create()`                     | Invoked before container is created.<br>It may deny or (temporarily) fail the creation by raising predefined exceptions.<br>Should return a `WorkloadConfig` struct. |
-| `post_create()`                    | Invoked after container is created.                                                                                                                                  |
-| `pre_terminate()`                  | Invoked before container is terminated.<br>It cannot cancel the termination but may defer termination for plugin-specific cleanup.                                   |
-| `post_terminate()`                 | Invoked after container is terminated.                                                                                                                               |
+| `pre_create()`                     | Invoked before workload is created.<br>It may deny or (temporarily) fail the creation by raising predefined exceptions.<br>Should return a `WorkloadConfig` struct. |
+| `post_create()`                    | Invoked after workload is created.                                                                                                                                  |
+| `pre_terminate()`                  | Invoked before workload is terminated.<br>It cannot cancel the termination but may defer termination for plugin-specific cleanup.                                   |
+| `post_terminate()`                 | Invoked after workload is terminated.                                                                                                                               |
 
 This new API merges and replaces Docker-specific argument/mount generation methods in the prior design.
 
@@ -99,3 +99,6 @@ All fields are optional.
 
 * How to handle & distinguish in-place restarts and relocated restarts in lifecycle hooks?
 * Would it better to provide a managed state-store interface to the lifecycle hook instances instead of requiring them to be stateless?
+* A better naming for "workload"?
+    - Just keep using "kernel" in align with the cluster-wide scheduler?
+    - Need to consider the relationship with "session" as well...
