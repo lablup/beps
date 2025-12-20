@@ -6,7 +6,7 @@ Created: 2025-11-28
 
 # Accelerator Interface v2
 
-## Prior Design
+## Current Design
 
 ### `AbstractComputeDevice` API
 
@@ -27,9 +27,9 @@ Created: 2025-11-28
 | `restore_from_container(container, alloc_map)`                   | Reconstruct the device allocation from the `aiodocker.DockerContainer` object                                                          |
 | `gather_{node,container,process}_metrics(stat_ctx[, target_id])` | Collects the raw metric values such as processor and memory utilization per node, container, or process                                |
 
-### Device Info
+### `AbstractComputeDevice` Struct
 
-See BEP-1000 for the new proposal.
+See [BEP-1000](https://github.com/lablup/beps/blob/main/proposals/BEP-1000-redefining-accelerator-metadata.md) for the new proposal and its comparison with the current design.
 
 ## Proposed Design
 
@@ -42,7 +42,7 @@ See BEP-1000 for the new proposal.
 * Tidy up redundant and messy methods that only expose partial information
 * Provide more detailed accelerator metadata ([BEP-1000](https://github.com/lablup/beps/blob/main/proposals/BEP-1000-redefining-accelerator-metadata.md))
 
-### `AbstractComputeDevice` API
+### `AbstractComputePlugin` API
 
 | Function                                                          | Role                                                                                                                               |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -56,6 +56,10 @@ See BEP-1000 for the new proposal.
 | `get_node_info()` ♻                                               | Get the node information such as driver/runtime versions and additional hardware info using a structured dataclass                 |
 
 Here the "workload" means either a container or a (native) process tree, depending on the agent backend implementation.
+
+### `AbstractComputeDevice` Struct
+
+See [BEP-1000](https://github.com/lablup/beps/blob/main/proposals/BEP-1000-redefining-accelerator-metadata.md) for the new proposal.
 
 ### `AbstractLifecycleHook` API ✨
 
