@@ -178,31 +178,6 @@ class AbstractComputeDevice:
     compute_units: Sequence[ComputeUnit]  # (new) detailed compute unit specification
     precision_support: Sequence[ComputePrecisionSupport]
     partioning_support: Sequence[PartitioningCapability]
-
-    ...
-
-class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
-    key: DeviceName = DeviceName("accelerator")
-    slot_types: Sequence[tuple[SlotName, SlotTypes]]
-    exclusive_slot_types: set[str]
-
-    # CHANGED: now returns a list of AcceleratorMetadata
-    @abstractmethod
-    def get_metadata(self) -> Sequence[AcceleratorMetadata]: ...
-
-    @abstractmethod
-    async def list_devices(self) -> Collection[AbstractComputeDevice]: ...
-
-    @abstractmethod
-    async def available_slots(self) -> Mapping[SlotName, Decimal]: ...
-
-    @abstractmethod
-    def get_version(self) -> str: ...
-
-    @abstractmethod
-    async def extra_info(self) -> Mapping[str, str]: ...
-
-    ...
 ```
 
 ### Design Goals
@@ -213,28 +188,6 @@ class AbstractComputePlugin(AbstractPlugin, metaclass=ABCMeta):
 * Consider defining an explicit jsonschema for easier validation.
 * Unify a-little-bit duplicated interfaces, like: "get_metadata()" and "extra_info()".
 
-### Translation of existing APIs
+### Accelerator API Redesign
 
-| Method | Resolution | Category |
-|-------------------------------------|-------------------------------------|:-------:|
-| `get_metadata()`                    | redesigned as `get_resource_spec()` with explicit schema | metadata |
-| `list_devices()`                    | redesigned to use more detailed device-info schema       | device-info |
-| `get_version()`                     | kept as-is                           | metadata |
-| `gather_node_measures(...)`         | kept as-is                           | metric |
-| `gather_container_measures(...)`    | kept as-is                           | metric |
-| `gather_process_measures(...)`      | kept as-is                           | metric |
-| `create_alloc_map()`                | kept as-is                           | resource-control |
-| `restore_from_container(...)`       | renamed to `reconstruct_from_kernel(...)` | agent-state |
-| `generate_resource_data(...)`       | renamed to `write_into_kernel(...)`       | container-creation, agent-state |
-| `available_slots()`                 | unified into `get_resource_spec()`        | device-info |
-| `get_attached_devices(...)`         | renamed to `to_device_list(...)`          | device-info |
-| `get_hooks()`                       | unified into `query_workload_config(...)` | container-creation |
-| `generate_docker_args(...)`         | unified into `query_workload_config(...)` | container-creation |
-| `get_docker_networks(...)`          | unified into `query_workload_config(...)` | container-creation |
-| `generate_mounts(...)`              | unified into `query_workload_config(...)` | container-creation |
-| `get_additional_gids()`             | unified into `query_workload_config(...)` | container-creation |
-| `get_additional_allowed_syscalls()` | unified into `query_workload_config(...)` | container-creation |
-
-## Potential impacts to fellow developers
-
-The plugin interface update requires updates of the existing plugins.Instead of replacing existing interface, we could add another interface to support multiple interfaces at the same time.
+Refer to [BEP-1016](https://github.com/lablup/beps/blob/main/proposals/BEP-1016-accelerator-interface-v2.md).

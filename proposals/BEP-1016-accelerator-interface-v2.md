@@ -44,30 +44,52 @@ See BEP-1000 for the new proposal.
 
 ### `AbstractComputeDevice` API
 
-| Function                                                         | Role                                                                                                               |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `list_devices()`                                                 | List the available devices in the node                                                                             |
-| `configurable_slots()` ✨                                         | List the all possible resource slot types along with the display metadata                                          |
-| `available_slots()` ✨                                            | List the currently allocatable resource slot types as configured                                                   |
-| `create_alloc_map()`                                             | Create an `AbstractAllocMap` instance as configured                                                                |
-| `create_lifecycle_hook(container, device_alloc)` ✨               | Create an `AbstractLifecycleHook` instance                                                                         |
-| `alloc_to_devices(device_alloc)` ♻️                              | Extract the list of devices used in the given allocation, with their metadata                                      |
-| `gather_{node,container,process}_metrics(stat_ctx[, target_id])` | Collects the raw metric values such as processor and memory utilization per node, container, or process            |
-| `get_node_info()` ♻                                              | Get the node information such as driver/runtime versions and additional hardware info using a structured dataclass |
+| Function                                                          | Role                                                                                                                               |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `list_devices()`                                                  | List the available devices in the node                                                                                             |
+| `configurable_slots()` ✨                                          | List the all possible resource slot types along with the display metadata                                                          |
+| `available_slots()` ✨                                             | List the currently allocatable resource slot types as configured                                                                   |
+| `create_alloc_map()`                                              | Create an `AbstractAllocMap` instance as configured                                                                                |
+| `create_lifecycle_hook(workload, device_alloc)` ✨                 | Create an `AbstractLifecycleHook` instance                                                                                         |
+| `alloc_to_devices(device_alloc)` ♻️                               | Extract the list of devices used in the given allocation, with their metadata                                                      |
+| `gather_{node,workload,process}_metrics(stat_ctx[, target_id])` ♻ | Collects the raw metric values such as processor and memory utilization per node, workload (container or process tree), or process |
+| `get_node_info()` ♻                                               | Get the node information such as driver/runtime versions and additional hardware info using a structured dataclass                 |
+
+Here the "workload" means either a container or a (native) process tree, depending on the agent backend implementation.
 
 ### `AbstractLifecycleHook` API ✨
 
-| Function                            | Role                                                                                                                                                                                                                                              |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `__init__(container, device_alloc)` | Initialize the instance with the given container and allocation                                                                                                                                                                                   |
-| `pre_create()`                      | Invoked before container is created.<br>It may deny or (temporarily) fail the creation by raising predefined exceptions.<br>Should return container mounts, resource data (`resource.txt` lines), environment variables, and network attachments. |
-| `post_create()`                     | Invoked after container is created.                                                                                                                                                                                                               |
-| `pre_terminate()`                   | Invoked before container is terminated.<br>It cannot cancel the termination but may defer termination for plugin-specific cleanup.                                                                                                                |
-| `post_terminate()`                  | Invoked after container is terminated.                                                                                                                                                                                                            |
+| Function                           | Role                                                                                                                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `__init__(workload, device_alloc)` | Initialize the instance with the given workload and allocation                                                                                                       |
+| `pre_create()`                     | Invoked before container is created.<br>It may deny or (temporarily) fail the creation by raising predefined exceptions.<br>Should return a `WorkloadConfig` struct. |
+| `post_create()`                    | Invoked after container is created.                                                                                                                                  |
+| `pre_terminate()`                  | Invoked before container is terminated.<br>It cannot cancel the termination but may defer termination for plugin-specific cleanup.                                   |
+| `post_terminate()`                 | Invoked after container is terminated.                                                                                                                               |
 
 This new API merges and replaces Docker-specific argument/mount generation methods in the prior design.
 
 `AbstractLifecycleHook` should be designed as stateless, and it should be able to restore additional state from the container if necessary, to ensure that the Backend.AI Agent is fully restartable at any time.
+
+### `Workload` Struct ✨
+
+| Attribute | Content                                            |
+| --------- | -------------------------------------------------- |
+| `id`      | The identifier (container ID or leader process ID) |
+| `type`    | "container" \| "process_tree"                      |
+
+### `WorkloadConfig` Struct ✨
+
+| Attribute        | Content                                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `mounts`         | List of host-to-workload mounts, including device files and library hooks                                                              |
+| `env_vars`       | Key-value map of environment variables                                                                                                 |
+| `resource_data`  | Key-value map appended to `resource.txt` readable in the workload                                                                      |
+| `networks`       | List of network names to attach for plugin (only applicable when the network namespace is isolated)                                    |
+| `extra_gids`     | List of Linux GIDs applied to the workload                                                                                             |
+| `extra_syscalls` | List of Linux syscalls additionally allowed in the workload (only applicable when there is a syscall filter, like AppArmor or Seccomp) |
+
+All fields are optional.
 
 ### Discussion
 
