@@ -40,7 +40,7 @@ See BEP-1000 for the new proposal.
 * Allow programmatic extension of container lifecycle events 
     - e.g., Interact with a vendor-provided device management service when creating or destroying new containers in a node
 * Tidy up redundant and messy methods that only expose partial information
-* Provide more detailed accelerator metadata (BEP-1000)
+* Provide more detailed accelerator metadata ([BEP-1000](https://github.com/lablup/beps/blob/main/proposals/BEP-1000-redefining-accelerator-metadata.md))
 
 ### `AbstractComputeDevice` API
 
@@ -67,6 +67,9 @@ See BEP-1000 for the new proposal.
 
 This new API merges and replaces Docker-specific argument/mount generation methods in the prior design.
 
+`AbstractLifecycleHook` should be designed as stateless, and it should be able to restore additional state from the container if necessary, to ensure that the Backend.AI Agent is fully restartable at any time.
+
 ### Discussion
 
 * How to handle & distinguish in-place restarts and relocated restarts in lifecycle hooks?
+* Would it better to provide a managed state-store interface to the lifecycle hook instances instead of requiring them to be stateless?
