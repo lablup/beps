@@ -181,20 +181,123 @@ This design pattern is ***not*** replicated in keypair or user resource policies
 
 Since resource policies should applied in the granularity of users, not the authentication tokens (= keypairs), we need to merge the entire keypair resource policies into the user resource policies.
 
-```mermaid
-
-```
-(TODO)
 ### 2. Merge Project resource policies into individual Project resource configurations
 
 There is no reason to have separate shared, inherited named resource policy for projects. Let's merge and migrate all project resource policy fields to individual project instances.
 
 We could repurpose the existing project resource policy as "project resource policy templates" for administrators repeatedly creating new projects.
 
+### 1 & 2: Redesigned database schema
+
+```mermaid
+erDiagram
+	USER ||--|{ KEYPAIR : has
+	USER }o--|| PROJECT : belongs-to
+  
+	USER }|--|| USER_RESOURCE_POLICY : ruled-by
+
+	KEYPAIR {
+		string access_key PK
+		string secret_key
+		string user_id
+		uuid user FK
+		boolean is_active
+		boolean is_admin
+		datetime created_at
+		datetime modified_at
+		datetime last_used
+		int rate_limit
+		int num_queries
+		text ssh_public_key
+		text ssh_private_key
+		binary dotfiles
+		string bootstrap_script
+	}
+
+	USER {
+		uuid uuid PK
+		string username
+		string email
+		string password
+		string domain_name FK
+		string resource_policy FK
+		enum role
+		enum status
+		string full_name
+		string main_access_key FK
+		boolean sudo_session_enabled
+		int container_uid
+		int container_main_gid
+		array container_gids
+	}
+
+	PROJECT {
+		uuid id PK
+		string name
+		string domain_name FK
+		enum type
+		boolean is_active
+		binary dotfiles
+		json container_registry
+		json total_resource_slots "per-instance policy"
+		json allowed_vfolder_hosts "per-instance policy"
+		int max_vfolder_count "per-instance policy (merged)"
+		bigint max_quota_scope_size "per-instance policy (merged)"
+		int max_network_count "per-instance policy (merged)"
+	}
+
+	USER_RESOURCE_POLICY {
+		string name PK
+		datetime created_at
+		enum default_for_unspecified "merged from keypair policy"
+		json total_resource_slots "merged from keypair policy"
+		int max_session_lifetime "merged from keypair policy"
+		int max_concurrent_sessions "merged from keypair policy"
+		int max_pending_session_count "merged from keypair policy"
+		json max_pending_session_resource_slots "merged from keypair policy"
+		int max_concurrent_sftp_sessions "merged from keypair policy"
+		int max_containers_per_session "merged from keypair policy"
+		bigint idle_timeout "merged from keypair policy"
+		json allowed_vfolder_hosts "merged from keypair policy"
+		int max_vfolder_count
+		bigint max_quota_scope_size
+		int max_session_count_per_model_session
+		int max_customized_image_count
+	}
+
+	PROJECT_RESOURCE_POLICY_TEMPLATE {
+		string name PK
+		datetime created_at
+		json total_resource_slots
+		json allowed_vfolder_hosts
+		int max_vfolder_count
+		bigint max_quota_scope_size
+		int max_network_count
+	}
+```
+
+**Summary of changes:**
+
+1. **`KEYPAIR` table**: Removed `resource_policy` FK. Keypairs no longer reference resource policies directly; all resource constraints are now enforced at the user level.
+
+2. **`KEYPAIR_RESOURCE_POLICY` table**: **Removed**. All fields merged into `USER_RESOURCE_POLICY`.
+
+3. **`USER_RESOURCE_POLICY` table**: Now contains all session-related quotas previously in keypair resource policies, plus existing user-specific quotas:
+   - Session quotas: `total_resource_slots`, `max_concurrent_sessions`, `max_session_lifetime`, `idle_timeout`, etc.
+   - Storage quotas: `max_vfolder_count`, `max_quota_scope_size`, `allowed_vfolder_hosts`
+   - Model serving: `max_session_count_per_model_session`, `max_customized_image_count`
+
+4. **`PROJECT` table**: Now contains all quota fields directly (no FK reference to policy):
+   - `max_vfolder_count`, `max_quota_scope_size`, `max_network_count` merged from `PROJECT_RESOURCE_POLICY`
+   - Existing `total_resource_slots` and `allowed_vfolder_hosts` remain as per-instance fields
+
+5. **`PROJECT_RESOURCE_POLICY` → `PROJECT_RESOURCE_POLICY_TEMPLATE`**: Repurposed as an optional template for administrators to quickly configure new projects with preset values. Projects no longer reference this via FK; it serves only as a convenience for copying defaults during project creation.
+
 ### 3. Add per-user default project aka workspace AND/OR implement RBAC-like scoping of user and project resource policies
 
 
-> [!NOTE] Discussion required
+> [!NOTE]
+> **Discussion required**
 > 
 > We could even **merge per-user resource policies into per-project resource** if we make all users have their own "workspace" project.
 > The problem is that sometimes we may want to impose resource limits across multiple users who belong to different projects. For such case, we may want to have separate per-user reference to external resource policies.
@@ -203,6 +306,13 @@ We could repurpose the existing project resource policy as "project resource pol
 > 
 > - Per-user shared resource policies crossing the project boundary
 > - Per-project resource policies with per-user's own default workspace project
+
+```mermaid
+erDiagram
+	USER }|--|| RESOURCE_POLICY : ruled-by
+	PROJECT }|--|| RESOURCE_POLICY : ruled-by
+	DOMAIN }|--|| RESOURCE_POLICY : ruled-by
+```
 
 
 ## Impacts to Users or Developers / Migration Plan
