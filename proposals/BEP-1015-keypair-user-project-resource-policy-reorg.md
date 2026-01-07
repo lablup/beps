@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-11-25
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1015-keypair-user-project-resource-policy-reorg.md
+
 # KeyPair/User/Project Resource Policy Reorganization
 
 ## Motivation

@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-07-14
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1013-GraphQL-schema-for-new-model-service.md
+
 # Title
 
 GraphQL Schema for new Model Service

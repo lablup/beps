@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-06-27
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1006-service-deployment-strategy.md
+
 # Backend.AI Model Service Deployment Strategy Enhancement
 
 ## Abstract

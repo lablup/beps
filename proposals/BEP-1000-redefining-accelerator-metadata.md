@@ -3,6 +3,9 @@ Author: Joongi Kim (joongi@lablup.com)
 Status: Draft
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1000-redefining-accelerator-metadata.md
+
 # Redefining Accelerator Metadata
 
 ## Current structure

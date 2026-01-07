@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-06-30
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1009-model-serving-registry.md
+
 # Model Serving Registry
 
 This document proposes a new BEP for the Model Serving Registry, which will serve as a centralized repository for model serving configurations and metadata.

@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-07-09
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1011-local-cache-for-model-vfolders.md
+
 # Local cache for model vfolders
 
 ## Motivation

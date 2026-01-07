@@ -1,3 +1,6 @@
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1010-new-gql.md
+
 # BEP-1010: GraphQL API Migration to Strawberry
 
 ## Overview

@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-06-04
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1004-scenario-tester.md
+
 # Agent Architecture
 
 ## Abstract

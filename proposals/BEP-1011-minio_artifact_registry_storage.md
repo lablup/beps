@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-07-10
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1011-minio_artifact_registry_storage.md
+
 # Support MinIO as Artifact Registry Storage Backend
 
 Let's add support for `MinIO` in the storage proxy as a storage backend for the artifact registry.

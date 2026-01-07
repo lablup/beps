@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-07-08
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1011-model-scanner-model-downloader.md
+
 # Title
 
 Model Scanner and Downloader for downloading Model codes from external model hubs

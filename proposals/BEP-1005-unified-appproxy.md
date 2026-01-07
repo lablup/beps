@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-06-13
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1005-unified-appproxy.md
+
 # Backend.AI AppProxy Architecture Enhancement
 
 ## Abstract

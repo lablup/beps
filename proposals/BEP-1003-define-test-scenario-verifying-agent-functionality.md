@@ -3,6 +3,9 @@ Author: Bokeum Kim (bkkim@lablup.com)
 Status: Draft
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1003-define-test-scenario-verifying-agent-functionality.md
+
 # Agent Operations
 
 ---

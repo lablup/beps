@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-05-22
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1002-agent-architecture.md
+
 # Agent Architecture
 
 ## Abstract

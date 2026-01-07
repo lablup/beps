@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-11-28
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1016-accelerator-interface-v2.md
+
 # Accelerator Interface v2
 
 ## Current Design

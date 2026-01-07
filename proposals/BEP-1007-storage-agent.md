@@ -4,6 +4,9 @@ Status: Draft
 Created: 2024-08-30
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1007-storage-agent.md
+
 # Storage Agent
 
 ## Background

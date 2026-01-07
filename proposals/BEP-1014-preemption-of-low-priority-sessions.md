@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-11-16
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1014-preemption-of-low-priority-sessions.md
+
 # Preemption of Low-priority Sessions
 
 ## Motivation

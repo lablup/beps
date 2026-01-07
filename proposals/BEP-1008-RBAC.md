@@ -4,6 +4,9 @@ Status: Draft
 Created: 2025-06-23
 ---
 
+> [!NOTE]
+> This document is now moved to https://github.com/lablup/backend.ai/blob/main/proposals/BEP-1008-RBAC.md
+
 # Backend.AI Role-Based Access Control (RBAC)
 
 ## Abstract
