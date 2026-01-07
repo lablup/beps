@@ -1,7 +1,7 @@
 # BEPs
 Backend.AI Enhancement Proposals
 
-> ![NOTE]
+> [!NOTE]
 > This repository is now moved into the core mono-repo: https://github.com/lablup/backend.ai/tree/main/proposals
 
 ## Process
